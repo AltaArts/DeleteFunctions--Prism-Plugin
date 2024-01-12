@@ -1,0 +1,9 @@
+{
+    "NamingTemplate": {
+        "Scene Files:": "@PROJECT@--@FILENAME@",
+        "Product Files:": "@PROJECT@--@FILENAME@",
+        "Media Files:": "@PROJECT@--@FILENAME@",
+        "Library Files:": "@PROJECT@--@FILENAME@"
+    },
+    "ExportPaths": []
+}
