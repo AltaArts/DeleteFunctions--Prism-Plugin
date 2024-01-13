@@ -1,4 +1,4 @@
-# **ExportToDir plugin for Prism Pipeline 2**
+# **DeleteFunctions plugin for Prism Pipeline 2**
 A plugin to be used with version 2 of Prism Pipeline 
 
 Prism automates and simplifies the workflow of animation and VFX projects.
@@ -10,7 +10,7 @@ https://prism-pipeline.com/
 
 ## **Plugin Usage**
 
-ExportToDir adds a right-click item to Prism2's GUI that opens a dialogue to customize an export file name and directory, and adds the option to have the file(s) zipped.  Using ExportToDir does not alter the original files or information data.
+DeleteFunctions adds a right-click item to Prism2's GUI that opens a dialogue to customize an export file name and directory, and adds the option to have the file(s) zipped.  Using ExportToDir does not alter the original files or information data.
 
 The ExportToDir plugin adds a menu tab in Prism2's User Settings that allows the user to create template filenames, and custom directories used for the export.
 
