@@ -1,20 +1,5 @@
 {
-    "Delete Directory": "C:\\Users\\Joshua Breckeen\\Desktop\\TEMP DELETE",
-    "Items": [
-        {
-            "Project": "Prism Tests",
-            "File": "Monkey_Modeling_v0006.blend",
-            "Deleted": "01/11/24 21:41"
-        },
-        {
-            "Project": "Prism Tests",
-            "File": "Monkey_Modeling_v0006preview.jpg",
-            "Deleted": "01/11/24 21:41"
-        },
-        {
-            "Project": "Prism Tests",
-            "File": "Monkey_Modeling_v0006versioninfo.json",
-            "Deleted": "01/11/24 21:41"
-        }
-    ]
+    "Delete Active": true,
+    "Delete Directory": "C:\\Users\\Alta Arts\\Desktop\\TEMP",
+    "Items": []
 }
