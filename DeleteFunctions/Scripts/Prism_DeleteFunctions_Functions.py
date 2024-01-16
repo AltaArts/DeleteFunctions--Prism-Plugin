@@ -48,7 +48,6 @@ import json
 import shutil
 import re
 from datetime import datetime
-import time
 
 
 try:
@@ -78,19 +77,16 @@ class Prism_DeleteFunctions_Functions(object):
         self.core.registerCallback("projectBrowserContextMenuRequested", self.projectBrowserContextMenuRequested, plugin=self)      
 
         self.core.registerCallback("openPBFileContextMenu", self.deleteSceneFile, plugin=self)
-
-
         self.core.registerCallback("openPBShotDepartmentContextMenu", self.deleteShotDepartment, plugin=self)
         self.core.registerCallback("openPBShotTaskContextMenu", self.deleteShotTask, plugin=self)
-
         self.core.registerCallback("openPBAssetDepartmentContextMenu", self.deleteAssetDepartment, plugin=self)
         self.core.registerCallback("openPBAssetTaskContextMenu", self.deleteAssetTask, plugin=self)
 
+        self.core.registerCallback("productSelectorContextMenuRequested", self.productSelectorContextMenuRequested, plugin=self)  
 
-
-        self.core.registerCallback("productSelectorContextMenuRequested", self.productSelectorContextMenuRequested, plugin=self)        
         # self.core.registerCallback("mediaPlayerContextMenuRequested", self.mediaPlayerContextMenuRequested, plugin=self)        
         # self.core.registerCallback("textureLibraryTextureContextMenuRequested", self.textureLibraryTextureContextMenuRequested, plugin=self)
+        
         self.core.registerCallback("userSettings_loadUI", self.userSettings_loadUI, plugin=self)
         self.core.registerCallback("onUserSettingsSave", self.saveSettings, plugin=self)
 
@@ -142,7 +138,7 @@ class Prism_DeleteFunctions_Functions(object):
         self.e_deleteDir.setReadOnly(True)
         tip = ("Directory to hold Deleted items.  If the Directory cannot be found,\n"
                "the Delete Functions will not be available."
-            )
+                )
         self.e_deleteDir.setToolTip(tip)
 
         self.but_fileDialogue = QPushButton("...")
@@ -165,7 +161,8 @@ class Prism_DeleteFunctions_Functions(object):
         tip = ("Time period in hours to keep the Deleted files in the Delete Dir\n"
                "before being automatically purged.\n"
                "\n"
-               "Setting Zero will mean Deleted Files will be held indefinitly.")
+               "Setting Zero will mean Deleted Files will be held indefinitly."
+               )
         self.spb_hours.setToolTip(tip)
 
         self.hotzSpacer1 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -190,23 +187,16 @@ class Prism_DeleteFunctions_Functions(object):
 
         # Add the table directly to the layout
         self.table_delItems = QTableWidget()
-        self.table_delItems.setColumnCount(4)  # Set the number of columns
+        self.table_delItems.setColumnCount(5)  # Set the number of columns
         self.table_delItems.setHorizontalHeaderLabels(["Project", "Type", "Entity", "Deleted"])  # Set column headers
 
-        self.table_delItems.setSelectionBehavior(QAbstractItemView.SelectRows)
-
-        # Set sorting behavior
-        self.table_delItems.setSortingEnabled(True)
-        self.table_delItems.sortByColumn(3, Qt.DescendingOrder)  # Default sorting by "Deleted" column, descending order
-
-        # Set column widths
+        # # Set column widths
         self.table_delItems.setColumnWidth(0, 150)  # Project column
         self.table_delItems.setColumnWidth(1, 150)  # Project column
         # self.table_delItems.setColumnWidth(1, -1)  # File column (stretch to fill)
         self.table_delItems.setColumnWidth(3, 150)  # Deleted column
 
         # Set column stretch
-        # self.table_delItems.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # File column (stretch to fill)
         self.table_delItems.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # File column (stretch to fill)
 
         # Set column alignments
@@ -215,7 +205,10 @@ class Prism_DeleteFunctions_Functions(object):
         self.table_delItems.horizontalHeaderItem(2).setTextAlignment(Qt.AlignLeft)  # File column (center-align)
         self.table_delItems.horizontalHeaderItem(3).setTextAlignment(Qt.AlignLeft)  # Deleted column (right-align)
 
-        # Set items to be read-only                                                                                     #   TODO NOT WORKING               
+        #   Hides UID Column
+        self.table_delItems.setColumnHidden(4, True)
+
+        # Set items to be read-only                                     #   TODO READONLY NOT WORKING
         for row in range(self.table_delItems.rowCount()):
             for col in range(self.table_delItems.columnCount()):
                 item = QTableWidgetItem()
@@ -230,6 +223,9 @@ class Prism_DeleteFunctions_Functions(object):
                 )
         self.table_delItems.setToolTip(tip)
 
+        self.table_delItems.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table_delItems.setSelectionMode(QAbstractItemView.SingleSelection)
+
         self.lo_deleteDirectory.addWidget(self.table_delItems)
 
         # Add a box for buttons at the bottom
@@ -241,11 +237,13 @@ class Prism_DeleteFunctions_Functions(object):
         self.but_openDir.setToolTip(tip)
 
         self.but_refreshList = QPushButton("ReSync List")
-        tip = "ReSyncs deleted item list to Delete Dir current contents."
+        tip = ("ReSyncs deleted item list to Delete Dir current contents.\n\n"
+               "This may be required when files are manually changed in the Delete Dir."
+                )
         self.but_refreshList.setToolTip(tip)
 
-        self.but_undoLast = QPushButton("Undo Last Delete")
-        tip = "Will restore last deleted items to their orginal location."
+        self.but_undoLast = QPushButton("Restore Selected")
+        tip = "Restore selected items to their orginal location."
         self.but_undoLast.setToolTip(tip)
 
         self.but_purgeSelected = QPushButton("Purge Selected")
@@ -288,7 +286,7 @@ class Prism_DeleteFunctions_Functions(object):
         self.but_fileDialogue.clicked.connect(lambda: self.openExplorer(set=True))
         self.but_openDir.clicked.connect(lambda: self.openExplorer(set=False))
         self.but_refreshList.clicked.connect(lambda: self.refreshList())
-        self.but_undoLast.clicked.connect(lambda: self.undoLast())
+        self.but_undoLast.clicked.connect(lambda: self.restoreSelected())
         self.but_purgeSelected.clicked.connect(lambda: self.purgeFiles(mode="single"))
         self.but_purgeAll.clicked.connect(lambda: self.purgeFiles(mode="all"))
 
@@ -337,7 +335,10 @@ class Prism_DeleteFunctions_Functions(object):
     #   Load Settings from json
     @err_catcher(name=__name__)
     def loadSettings(self):
+
+
         try:
+            
             with open(self.settingsFile, "r") as json_file:
                 data = json.load(json_file)
 
@@ -358,18 +359,28 @@ class Prism_DeleteFunctions_Functions(object):
                         # Clear the existing rows in the table
                         self.table_delItems.setRowCount(0)
 
+                        #   Temporalily disable sorting for table load
+                        self.table_delItems.setSortingEnabled(False)
+
                         # Populate the table with data from self.delFileInfoList
                         for item in self.delFileInfoList:
                             rowPosition = self.table_delItems.rowCount()
                             self.table_delItems.insertRow(rowPosition)
 
-                            # Assuming "Project", "File", and "Deleted" keys exist in each item
                             self.table_delItems.setItem(rowPosition, 0, QTableWidgetItem(item["Project"]))
                             self.table_delItems.setItem(rowPosition, 1, QTableWidgetItem(item["Type"]))
                             self.table_delItems.setItem(rowPosition, 2, QTableWidgetItem(item["Entity"]))
                             self.table_delItems.setItem(rowPosition, 3, QTableWidgetItem(item["Deleted"]))
+                            #   Loads the data even though column is hidden from theUI
+                            self.table_delItems.setItem(rowPosition, 4, QTableWidgetItem(item["UID"]))
+
+                        # Reset Table Sorting Behavior
+                        self.table_delItems.setSortingEnabled(True)
+                        self.table_delItems.sortByColumn(3, Qt.DescendingOrder)  # Default sorting by "Deleted" column, descending order
+
                     except:
                         pass
+
 
             self.configureUI()
 
@@ -392,21 +403,34 @@ class Prism_DeleteFunctions_Functions(object):
                         indent=4
                         )
         
+        self.loadSettings()
+
 
     @err_catcher(name=__name__)
     def configureUI(self):
-
+        
         try:
-            self.deleteActive = self.chb_usedelete.isChecked()
-            active = self.deleteActive
+            self.deleteActive = self.chb_usedelete.isChecked()              #   TODO MAKE SURE THIS IS WORKING CORRECTLY
+            enabled = self.deleteActive
+            dirExists = os.path.exists(self.delDirectory)
+            active = enabled and dirExists
 
-            self.e_deleteDir.setEnabled(active)
-            self.but_fileDialogue.setEnabled(active)
+            self.l_delDirText.setEnabled(enabled)
+            self.e_deleteDir.setEnabled(enabled)
+            self.but_fileDialogue.setEnabled(enabled)
             self.l_hours.setEnabled(active)
             self.spb_hours.setEnabled(active)
             self.l_tempDirSizeLabel.setEnabled(active)
             self.e_tempDirSize.setEnabled(active)
-            self.table_delItems.setEnabled(active)
+            if enabled and not dirExists:
+                #   If Delete Dir is does not exist
+                self.table_delItems.setRowCount(10)
+                # Add message to Table
+                self.table_delItems.setItem(5, 1, QTableWidgetItem("DELETE DIRECTORY"))
+                self.table_delItems.setItem(5, 2, QTableWidgetItem("DOES NOT EXIST."))
+                self.table_delItems.setEnabled(False)
+            else:
+                self.table_delItems.setEnabled(active)
             self.but_openDir.setEnabled(active)
             self.but_refreshList.setEnabled(active)
             self.but_undoLast.setEnabled(active)
@@ -426,7 +450,7 @@ class Prism_DeleteFunctions_Functions(object):
 
 
     #   Called with Callback - Project Browser
-    @err_catcher(name=__name__)                                         #   TODO  There is no Callback for Project Browser RCL Menu
+    @err_catcher(name=__name__)                                 #   TODO  There is no Callback for Project Browser RCL Menu
     def projectBrowserContextMenuRequested(self, origin, menu):
 
         pass
@@ -465,11 +489,13 @@ class Prism_DeleteFunctions_Functions(object):
             delEntityData["delItem"] = version
             delEntityData["delItemName"] = sourceFilename
             delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = "Version"
+
 
             #   Adds Right Click Item
-            sendToAct = QAction("Delete Version", rcmenu)
-            sendToAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-            rcmenu.addAction(sendToAct)
+            deleteAct = QAction("Delete Version", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
             
 
     @err_catcher(name=__name__)
@@ -488,33 +514,33 @@ class Prism_DeleteFunctions_Functions(object):
 
             projectName = self.core.projectName
 
-            entity = self.core.pb.sceneBrowser.getCurrentEntity()
+            entity = origin.getCurrentEntity()
             if not entity or entity["type"] not in ["asset", "shot", "sequence"]:
                 return
 
             sequence = entity["sequence"]
             shot = entity["shot"]
 
-            deptName = self.core.pb.sceneBrowser.getCurrentDepartment()
+            deptName = origin.getCurrentDepartment()
             if deptName:
                 deptDir = self.core.getEntityPath(entity=entity, step=deptName)
             else:
                 return
 
             deleteList = []
-            for file in os.listdir(deptDir):
-                deleteList.append(file)
+            deleteList.append(deptName)
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = deptDir
+            delEntityData["sourceDir"] = os.path.dirname(deptDir)
             delEntityData["delItem"] = deptNameFull
             delEntityData["delItemName"] = f"{sequence}_{shot}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = "Department"
 
-            sendToAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
-            sendToAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-            rcmenu.addAction(sendToAct)
+            deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
 
 
     @err_catcher(name=__name__)
@@ -533,35 +559,33 @@ class Prism_DeleteFunctions_Functions(object):
 
             projectName = self.core.projectName
 
-            entity = self.core.pb.sceneBrowser.getCurrentEntity()
+            entity = origin.getCurrentEntity()
             if not entity or entity["type"] not in ["asset", "shot", "sequence"]:
                 return
 
             sequence = entity["sequence"]
             shot = entity["shot"]
 
-            curDep = self.core.pb.sceneBrowser.getCurrentDepartment()
+            curDep = origin.getCurrentDepartment()
             if curDep:
-                deptPath = self.core.getEntityPath(entity=entity, step=curDep)
+                deptDir = self.core.getEntityPath(entity=entity, step=curDep)
             else:
                 return
 
-            taskDir = os.path.join(deptPath, taskName)
-
             deleteList = []
-            for file in os.listdir(taskDir):
-                deleteList.append(file)
+            deleteList.append(taskName)
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = taskDir
+            delEntityData["sourceDir"] = os.path.normpath(deptDir)
             delEntityData["delItem"] = taskName
             delEntityData["delItemName"] = f"{sequence}_{shot}_{curDep}_{taskName}"
             delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = "Task"
 
-            sendToAct = QAction(f"Delete Task: {taskName}", rcmenu)
-            sendToAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-            rcmenu.addAction(sendToAct)
+            deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
 
 
 
@@ -581,32 +605,33 @@ class Prism_DeleteFunctions_Functions(object):
 
             projectName = self.core.projectName
 
-            entity = self.core.pb.sceneBrowser.getCurrentEntity()
+            entity = origin.getCurrentEntity()
             if not entity or entity["type"] not in ["asset", "shot", "sequence"]:
                 return
 
             asset = entity["asset"]
 
-            deptName = self.core.pb.sceneBrowser.getCurrentDepartment()
+            deptName = origin.getCurrentDepartment()
             if deptName:
                 deptDir = self.core.getEntityPath(entity=entity, step=deptName)
             else:
                 return
 
             deleteList = []
-            for file in os.listdir(deptDir):
-                deleteList.append(file)
+            deleteList.append(deptName)
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = deptDir
+            delEntityData["sourceDir"] = os.path.dirname(deptDir)
             delEntityData["delItem"] = deptNameFull
             delEntityData["delItemName"] = f"{asset}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = "Department"
 
-            sendToAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
-            sendToAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-            rcmenu.addAction(sendToAct)
+
+            deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
 
 
     @err_catcher(name=__name__)
@@ -625,74 +650,159 @@ class Prism_DeleteFunctions_Functions(object):
 
             projectName = self.core.projectName
 
-            entity = self.core.pb.sceneBrowser.getCurrentEntity()
+            entity = origin.getCurrentEntity()
             if not entity or entity["type"] not in ["asset", "shot", "sequence"]:
                 return
 
             asset = entity["asset"]
 
-            curDep = self.core.pb.sceneBrowser.getCurrentDepartment()
+            curDep = origin.getCurrentDepartment()
             if curDep:
-                deptPath = self.core.getEntityPath(entity=entity, step=curDep)
+                deptDir = self.core.getEntityPath(entity=entity, step=curDep)
             else:
                 return
 
-            taskDir = os.path.join(deptPath, taskName)
-
             deleteList = []
-            for file in os.listdir(taskDir):
-                deleteList.append(file)
+            deleteList.append(taskName)
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = taskDir
+            delEntityData["sourceDir"] = os.path.normpath(deptDir)
             delEntityData["delItem"] = taskName
-            delEntityData["delItemName"] = f"{asset}_{taskName}"
+            delEntityData["delItemName"] = f"{asset}_{curDep}_{taskName}"
             delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = "Task"
 
-            sendToAct = QAction(f"Delete Task: {taskName}", rcmenu)
-            sendToAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-            rcmenu.addAction(sendToAct)
+            deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
 
 
     #   Called with Callback - Product Browser
     @err_catcher(name=__name__)
     def productSelectorContextMenuRequested(self, origin, viewUi, pos, rcmenu):
-        version = origin.getCurrentVersion()
-        if not version:
-            return
 
-        self.menuContext = "Product Files:"
-        self.singleFileMode = True
-        fileData = None
+        self.loadSettings()
 
-        try:
-            #   Gets Source Path from Last Column
-            row = viewUi.rowAt(pos.y())
-            numCols = viewUi.columnCount()
-            if row >= 0:
-                sourcePath = viewUi.item(row, numCols - 1).text()
+        if self.isDeleteActive():
 
-            #   Retrieves File Info        
-            infoFolder = self.core.products.getVersionInfoPathFromProductFilepath(sourcePath)
-            infoPath = self.core.getVersioninfoPath(infoFolder)
-            fileData = self.core.getConfig(configPath=infoPath)
+            version = origin.getCurrentVersion()
+            if not version:
+                return
+            
+            if hasattr(origin, "tw_versions") and viewUi == origin.tw_versions:
+                listType = "versions"
+            elif hasattr(origin, "tw_identifier") and viewUi == origin.tw_identifier:
+                listType = "identifier"
 
-            fileData["sourcePath"] = sourcePath
-            fileData["sourceDir"], fileData["sourceFilename"] = ntpath.split(sourcePath)
-            fileData["extension"] = os.path.splitext(fileData["sourceFilename"])[1]
+            self.menuContext = "Product"
+            deleteList = []
 
-            #   Adds Right Click Item
-            if os.path.exists(sourcePath):
-                sendToAct = QAction("Export to Dir...", viewUi)
-                sendToAct.triggered.connect(lambda: self.sendToDialogue())
-                rcmenu.addAction(sendToAct)
+            #   Product Indentifier
+            if listType == "identifier":
+                item = origin.tw_identifier.itemAt(pos)
+                prodData = item.data(0, Qt.UserRole)
 
-            #   Sends File Info to get sorted
-            self.loadCoreData(fileData)
+                deleteList = []
 
-        except:
-            return
+                paths = prodData["paths"]
+                product = prodData["product"]
+
+                # Iterate through locations and find corresponding location using the 'paths' list
+                for location in prodData['locations']:
+                    matching_path_entry = next((path_entry for path_entry in prodData['paths'] if path_entry['path'] in location), None)
+                    if matching_path_entry:
+                        deleteList.append({
+                            "location": matching_path_entry['location'],
+                            "path": location
+                        })
+
+
+                self.core.popup(f"deleteList-1: {deleteList}")                                      #    TESTING
+
+                delItem = product
+                delItemName = product
+                menutitle = product
+
+            #   Product Version
+            elif listType == "versions":
+                #   Gets Source Path from Last Column - Assuming path is always last Column
+
+                data = origin.getCurrentProduct()
+
+                self.core.popup(f"data:  {data}")                                      #    TESTING
+
+                row = viewUi.rowAt(pos.y())
+                numCols = viewUi.columnCount()
+                if row >= 0:
+                    sourcePath = viewUi.item(row, numCols - 1).text()
+
+                #   Retrieves File Info        
+                infoFolder = self.core.products.getVersionInfoPathFromProductFilepath(sourcePath)
+                infoPath = self.core.getVersioninfoPath(infoFolder)
+                data = self.core.getConfig(configPath=infoPath)
+
+                sourceDir, fileName = ntpath.split(sourcePath)
+
+                version = data["version"]
+                product = data["product"]
+                menutitle = "Version"
+                deleteList.append(version)
+                delItem = version
+                delItemName = f"{data['product']}_{version}"
+
+
+            else:
+                return
+
+            projectName = prodData["project_name"]
+
+
+
+            delEntityData = {}
+            delEntityData["projectName"] = projectName
+            # delEntityData["sourceDir"] = os.path.normpath(sourceDir)
+            delEntityData["delItem"] = delItem
+            delEntityData["delItemName"] = delItemName
+            delEntityData["deleteList"] = deleteList
+            delEntityData["questText"] = menutitle
+
+
+
+            if listType == "versions":
+
+
+                delMenu = QMenu("Delete", viewUi)
+
+                deleteAct = QAction("Delete Version", viewUi)
+                deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+                delMenu.addAction(deleteAct)
+
+
+                removeMenu = QMenu("Remove", viewUi)                    #   TODO FIX GLOBAL AND LOCAL REMOVAL
+
+                removeGlobalAct = QAction("from Global", viewUi)
+                removeGlobalAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+                removeMenu.addAction(removeGlobalAct)
+
+
+                localDir = "Local Temp"
+                removeLocalAct = QAction(f"from {localDir}", viewUi)
+                removeLocalAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+                removeMenu.addAction(removeLocalAct)
+
+                delMenu.addMenu(removeMenu)
+
+                rcmenu.addMenu(delMenu)
+
+
+
+
+
+            elif listType == "identifier":            
+                deleteAct = QAction(f"Delete {menutitle}", viewUi)
+                deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+                rcmenu.addAction(deleteAct)
 
 
 
@@ -700,57 +810,86 @@ class Prism_DeleteFunctions_Functions(object):
     def deleteAction(self, delEntityData):
 
         projectName = delEntityData["projectName"]      #   PROJECT NAME
-        sourceDir = delEntityData["sourceDir"]          #   SOURCE DIRECTORY
+        # sourceDir = delEntityData["sourceDir"]          #   SOURCE DIRECTORY
         delItem = delEntityData["delItem"]              #   NAME FOR QUESTION
         delItemName = delEntityData["delItemName"]      #   ENTITY NAME
         deleteList = delEntityData["deleteList"]        #   ITEMS IN DIR TO COPY
+        questText = delEntityData["questText"]          #   FOR QUESTION POPUP
 
         currentTime = datetime.now()
         timestamp = currentTime.strftime("%m/%d/%y %H:%M")
 
         if self.menuContext == "Scene Files":
-            questionText = f"Are you sure you want to Delete:\n\nVersion: {delItem}"
-            windowTitle = "Delete Files"
+            questionText = f"Are you sure you want to Delete:\n\n{questText}: {delItem}"
+            windowTitle = f"Delete {questText}"
 
-        elif self.menuContext in ["Shot Dept", "Asset Dept"]:
-            questionText = f"Are you sure you want to Delete:\n\nDept: {delItem}"
-            windowTitle = "Delete Department"
+            result = self.core.popupQuestion(questionText, title=windowTitle)
 
-        elif self.menuContext in ["Shot Task", "Asset Task"]:
-            questionText = f"Are you sure you want to Delete:\n\nTask: {delItem}"
-            windowTitle = "Delete Task"
+            if result == "Yes":
+                destDir, delItemName = self.ensureDirName(delItemName)
 
-        result = self.core.popupQuestion(questionText, title=windowTitle)
+                for item in deleteList:
+                    sourceItem = os.path.join(sourceDir, item)
+                    destItem = os.path.join(destDir, item)
+                    shutil.move(sourceItem, destItem)
 
-        if result == "Yes":
-            destDir, delItemName = self.ensureDirName(delItemName)
+                fileInfo = {
+                    "Project": projectName,
+                    "Type": self.menuContext,
+                    "Entity": delItemName,
+                    "Deleted": timestamp,  
+                    "UID": self.generateUID(),
+                    "OriginalLocation": os.path.normpath(sourceDir),            #   TODO
+                    "OriginalPath"
+                    "OriginalDirName": delItem,
+                    "DeletedLocation": os.path.normpath(destDir),
+                    }
+                
+                self.delFileInfoList.append(fileInfo)
 
-            for file in deleteList:
-                sourceFile = os.path.join(sourceDir, file)
-                destFile = os.path.join(destDir, file)
-                shutil.move(sourceFile, destFile)
 
-            fileInfo = {
-                "Project": projectName,
-                "Type": self.menuContext,
-                "Entity": delItemName,
-                "Deleted": timestamp,
-                "Original Location": sourceDir,
-                "Deleted Location": destDir
-                }
-            
-            self.delFileInfoList.append(fileInfo)
+        # elif self.menuContext in ["Shot Dept", "Shot Task", "Asset Dept", "Asset Task"]:
+        else:
+            questionText = f"Are you sure you want to Delete:\n\n{questText}: {delItem}"
+            windowTitle = f"Delete {questText}"
 
-            if self.menuContext in ["Shot Dept", "Shot Task"]:
-                shutil.rmtree(sourceDir)
+            result = self.core.popupQuestion(questionText, title=windowTitle)
+
+            if result == "Yes":
+                destDir, delItemName = self.ensureDirName(delItemName)
+
+                for item in deleteList:
+                    sourceItem = item["path"]
+                    destItem = os.path.join(destDir, item["location"])
+                    shutil.move(sourceItem, destItem)
+
+                fileInfo = {
+                    "Project": projectName,
+                    "Type": self.menuContext,
+                    "Entity": delItemName,
+                    "Deleted": timestamp,
+                    "UID": self.generateUID(),
+                    "OriginalLocation": item,              #   TODO LIST
+                    "OriginalDirName":delItem,            #   TODO LIST
+                    "DeletedLocation": destDir,
+                    }
+                
+                self.delFileInfoList.append(fileInfo)
 
         self.saveSettings()
         self.core.pb.refreshUI()
     
 
     @err_catcher(name=__name__)
-    def ensureDirName(self, delItemName):
+    def generateUID(self):
+        #   Generate UId using current datetime to the nearest tenth of a second
+        currentDatetime = datetime.now()
+        UID = currentDatetime.strftime("%m%d%y%H%M%S") + str(currentDatetime.microsecond // 100000)
+        return UID
 
+
+    @err_catcher(name=__name__)
+    def ensureDirName(self, delItemName):
         destDir = os.path.join(self.delDirectory, delItemName)
 
         if not os.path.exists(destDir):
@@ -771,9 +910,9 @@ class Prism_DeleteFunctions_Functions(object):
             os.mkdir(destDir)
 
         return destDir, delItemName
+    
 
-
-    @err_catcher(name=__name__)                             #   TODO MAKE SURE DIRS EXIST -- Maybe do not show the Delete option if not.
+    @err_catcher(name=__name__)                 #   TODO MAKE SURE DIRS EXIST -- Maybe do not show the Delete option if not.
     def purgeFiles(self, mode=None):
 
         if mode == "all":
@@ -796,41 +935,106 @@ class Prism_DeleteFunctions_Functions(object):
             else:
                 return
             
-
         elif mode == "single":
-            questionText = f"Are you sure you want to Permanently Delete the Selected Items?\n\nThis is not Reversable."
+            questionText = f"Are you sure you want to Permanently Delete the Selected Items?\n\nThis is not Reversible."
             result = self.core.popupQuestion(questionText, title="Permanently Delete Files")
 
             if result == "Yes":
                 # Deleting selected files in the table
-                selectedRows = set(index.row() for index in self.table_delItems.selectionModel().selectedIndexes())
+                selectedRow = self.table_delItems.currentRow()
+                selectedUID = self.table_delItems.item(selectedRow, 4).text()
 
-                for row in selectedRows:
-                    entity = self.table_delItems.item(row, 2).text()
+                self.core.popup(f"self.delFileInfoList: {self.delFileInfoList}")                                      #    TESTING
 
-                    # Remove the selected entry from the list of dictionaries
-                    self.delFileInfoList = [item for item in self.delFileInfoList if item["Entity"] != entity]
+                # Find the dictionary in the list with the matching UID
+                matchingItem = self.getItemFromUID(selectedUID)
+
+                if matchingItem:
+                    self.core.popup(f"Matching Item: {matchingItem}")  # TESTING
 
                     # Add your logic to delete the file or perform any other action
-                    itemPath = os.path.join(self.delDirectory, entity)
+                    itemPath = matchingItem["DeletedLocation"]
                     if os.path.exists(itemPath):
                         shutil.rmtree(itemPath)
 
-                self.saveSettings()
-        else:
-            return
+                    # Remove the matched item from the list
+                    self.delFileInfoList.remove(matchingItem)
+
+                    self.saveSettings()
+                    self.refreshList()
+
+            else:
+                return
 
         self.refreshList()
 
 
-    @err_catcher(name=__name__)                 #   TODO    MAKE UNDO
-    def undoLast(self):
+    @err_catcher(name=__name__)
+    def getItemFromUID(self, UID):   
+        selectedItem = next((item for item in self.delFileInfoList if item["UID"] == UID), None)
+        return selectedItem
+    
 
-        pass
+    @err_catcher(name=__name__)
+    def restoreSelected(self):
+                                                                #   TODO ADD QUESTION
+        questionText = (f"Are you sure you want to Restore the selected Entity to the original location?\n\n"
+                        "The restore will overwrite any files with the same name as the deleted file(s)."
+                        )
+        title = "Restore Entity"
+        result = self.core.popupQuestion(questionText, title=title)
+
+        if result == "Yes":
+
+            # Get the selected items
+            selectedRow = self.table_delItems.currentRow()              #   TODO ADD ERROR CHECKING
+
+            if selectedRow != -1:
+
+                # Retrieve data directly from the current contents of the table
+                entityType = self.table_delItems.item(selectedRow, 1).text()
+                origLocationDict = self.table_delItems.item(selectedRow, 4).text()
+                origDirName = self.table_delItems.item(selectedRow, 5).text()
+                delLocation = self.table_delItems.item(selectedRow, 6).text()
+
+                origLocation = origLocationDict["path"]
 
 
+                if not os.path.exists(origLocation):
+                    os.mkdir(origLocation)
 
-    @err_catcher(name=__name__)                     #   TODO ENSURE SYNC BETWEEN DIR AND LIST
+                for item in os.listdir(delLocation):
+                    delItem = os.path.join(delLocation, item)
+                    shutil.move(delItem, origLocation)
+
+                self.table_delItems.removeRow(selectedRow)
+
+                self.delFileInfoList = []
+                for row in range(self.table_delItems.rowCount()):
+                    itemData = {
+                        "Project": self.table_delItems.item(row, 0).text(),
+                        "Type": self.table_delItems.item(row, 1).text(),
+                        "Entity": self.table_delItems.item(row, 2).text(),
+                        "Deleted": self.table_delItems.item(row, 3).text(),
+                        "Original Location": self.table_delItems.item(row, 4).text(),
+                        "Original Dir Name": self.table_delItems.item(row, 5).text(),
+                        "Deleted Location": self.table_delItems.item(row, 6).text()
+                        }
+                    
+                    self.delFileInfoList.append(itemData)
+
+                if os.path.exists(delLocation):
+                    shutil.rmtree(delLocation)
+
+                # self.delFileInfoList.pop(selectedRow)
+                self.saveSettings()
+                self.calcDelDirSize()
+                self.core.pb.refreshUI()
+            else:
+                pass
+
+
+    @err_catcher(name=__name__)                 #   TODO ENSURE SYNC BETWEEN DIR AND LIST
     def refreshList(self):
 
         self.table_delItems.clearContents()
@@ -860,7 +1064,6 @@ class Prism_DeleteFunctions_Functions(object):
             unit = "MB"
 
         delDirSizeStr = f"{delDirSize} {unit}"
-
         self.e_tempDirSize.setText(delDirSizeStr)
 
 
