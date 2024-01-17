@@ -45,7 +45,7 @@ import os
 
 class Prism_DeleteFunctions_Variables(object):
     def __init__(self, core, plugin):
-        self.version = "v2.0.3-0.4"
+        self.version = "v2.0.3-0.5"
         self.pluginName = "DeleteFunctions"
         self.pluginType = "Custom"
         self.platforms = ["Windows", "Linux", "Darwin"]
