@@ -740,18 +740,30 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             #   Case 1 - Product Indentifier
             if listType == "identifier":
                 item = origin.tw_identifier.itemAt(pos)
+                #   Retrieves Product Data
                 prodData = item.data(0, Qt.UserRole)
-                paths = prodData["paths"]
                 product = prodData["product"]
 
-                # Consolidates locations and paths lists to correlate path name to directory
-                for location in prodData['locations']:
-                    matchingPathItem = next((pathItem for pathItem in paths if pathItem['path'] in location), None)
-                    if matchingPathItem:
-                        deleteList.append({
-                            "location": matchingPathItem['location'],
-                            "path": location
-                        })
+                if prodData["type"] == "asset":
+                    asset = prodData["asset"]
+                    delItemName = f"{asset}_{product}"
+                else:
+                    sequence = prodData["sequence"]
+                    shot = prodData["shot"]
+                    delItemName = f"{sequence}_{shot}_{product}"
+
+                #   Retrieves Locations Data
+                saveLocs = origin.core.paths.getExportProductBasePaths()
+
+                #   Combine Dicts to correlate Location Name and Path
+                for loc in prodData["locations"]:
+                    for location, pathStart in saveLocs.items():
+                        if loc.startswith(pathStart):
+                            deleteList.append({
+                                "location": location,
+                                "path": loc
+                            })
+                            break
 
                 questionText = f"Are you sure you want to Delete:\n\nProduct: {product}"
                 windowTitle = f"Delete Product {product}"
@@ -759,7 +771,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 #   Populate Data to be Passed to deleteAction()
                 delEntityData = {}
                 delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItemName"] = product
+                delEntityData["delItemName"] = delItemName
                 delEntityData["deleteList"] = deleteList
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
@@ -772,34 +784,45 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
             #   Case 2 - Product Version
             elif listType == "versions":
-                #   Gets Source Path from Last Column - Assuming path is always last Column
+                #   Retreives Product Data
                 data = origin.getCurrentProduct()
                 paths = data["paths"]
                 
+                #   Gets Source Path from Last Column - Assuming path is always last Column
                 row = viewUi.rowAt(pos.y())
                 numCols = viewUi.columnCount()
                 if row >= 0:
                     sourcePath = viewUi.item(row, numCols - 1).text()
-
                 #   Retrieves File Info        
                 infoFolder = self.core.products.getVersionInfoPathFromProductFilepath(sourcePath)
                 infoPath = self.core.getVersioninfoPath(infoFolder)
                 prodData = self.core.getConfig(configPath=infoPath)
 
-                sourceDir, fileName = ntpath.split(sourcePath)
-
                 version = prodData["version"]
                 product = prodData["product"]
 
-                # Consolidates locations and paths lists to correlate path name to directory
-                locsList = []                                                                                               #   TODO FIX ASSET PRODUCTS
-                for location in data['locations']:
-                    matchingPathItem = next((pathItem for pathItem in paths if pathItem['path'] in location), None)
-                    if matchingPathItem:
-                        locsList.append({
-                            "location": matchingPathItem['location'],
-                            "path": os.path.join(location, version)
-                        })
+
+                if prodData["type"] == "asset":
+                    asset = prodData["asset"]
+                    delItemName = f"{asset}_{product}_{version}"
+                else:
+                    sequence = prodData["sequence"]
+                    shot = prodData["shot"]
+                    delItemName = f"{sequence}_{shot}_{product}_{version}"
+
+                #   Retrieves Locations Data
+                saveLocs = origin.core.paths.getExportProductBasePaths()
+
+                #   Combine Dicts to correlate Location Name and Path
+                locsList = []
+                for loc in data["locations"]:
+                    for location, pathStart in saveLocs.items():
+                        if loc.startswith(pathStart):
+                            locsList.append({
+                                "location": location,
+                                "path": os.path.join(loc, version)
+                            })
+                            break
 
                 #   Adds Version to deleteList if present in Location Dirs
                 for loc in locsList:
@@ -811,7 +834,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
                 delEntityData = {}
                 delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItemName"] = f"{data['product']}_{version}"
+                delEntityData["delItemName"] = delItemName
                 delEntityData["deleteList"] = deleteList
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
@@ -859,41 +882,49 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         result = self.core.popupQuestion(questText, title=questTitle)
 
         if result == "Yes":
-            origLocList = []
-            destDir, delItemName = self.ensureDirName(delItemName)
+            try:
+                origLocList = []
+                destDir, delItemName = self.ensureDirName(delItemName)
 
-            if self.menuContext == "Scene Files":
+                if self.menuContext == "Scene Files":
 
-                for item in deleteList:
-                    sourceItem = item["path"]
-                    destItem = os.path.join(destDir, item["location"])
-                    subDir = os.path.join(destDir, item["location"])
-                    if not os.path.exists(subDir):
-                        os.mkdir(subDir)
-                    shutil.move(sourceItem, destItem)
-                    origLocList.append(item)
+                    for item in deleteList:
+                        sourceItem = item["path"]
+                        destItem = os.path.join(destDir, item["location"])
+                        subDir = os.path.join(destDir, item["location"])
+                        if not os.path.exists(subDir):
+                            os.mkdir(subDir)
+                        shutil.move(sourceItem, destItem)
+                        origLocList.append(item)
 
-            else:
-                for item in deleteList:
-                    sourceItem = item["path"]
-                    destItem = os.path.join(destDir, item["location"])
-                    shutil.move(sourceItem, destItem)
-                    origLocList.append(item)
+                else:
+                    for item in deleteList:
+                        sourceItem = item["path"]
+                        destItem = os.path.join(destDir, item["location"])
+                        shutil.move(sourceItem, destItem)
+                        origLocList.append(item)
 
-            fileInfo = {                            #   TODO CHECK IF ALL NEEDED
-                "Project": projectName,
-                "Type": self.menuContext,
-                "Entity": delItemName,
-                "Deleted": timestamp,
-                "UID": self.generateUID(),
-                "OriginalLocation": origLocList,
-                "DeletedLocation": destDir,
-                }
-            
-            self.delFileInfoList.append(fileInfo)
+                fileInfo = {                            #   TODO CHECK IF ALL NEEDED
+                    "Project": projectName,
+                    "Type": self.menuContext,
+                    "Entity": delItemName,
+                    "Deleted": timestamp,
+                    "UID": self.generateUID(),
+                    "OriginalLocation": origLocList,
+                    "DeletedLocation": destDir,
+                    }
+                
+                self.delFileInfoList.append(fileInfo)
 
-        self.saveSettings()
-        self.core.pb.refreshUI()
+                self.saveSettings()
+                self.core.pb.refreshUI()
+
+            except Exception as e:
+                if self.menuContext == "Product":
+                    self.core.popup(f"Unable to Delete: {delItemName}\n\nTry closing the Viewer Window\n\n{e}")                 #   TODO    ADD DEBUG
+                else:
+                    self.core.popup(f"Unable to Delete: {delItemName}\n\n{e}")                 #   TODO    ADD DEBUG
+
         
     
 
