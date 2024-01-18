@@ -47,6 +47,8 @@ import subprocess
 import json
 import shutil
 import re
+import threading
+import time
 from datetime import datetime
 from functools import partial
 
@@ -61,11 +63,15 @@ except:
 
 from PrismUtils.Decorators import err_catcher_plugin as err_catcher
 
+# from PrismDeleteUtils.PrismWaitingIcon import PrismWaitingIcon
 
-class Prism_DeleteFunctions_Functions(object):
+
+class Prism_DeleteFunctions_Functions(object):                      #   TODO    ADD DEBUG STATEMENTS
     def __init__(self, core, plugin):
         self.core = core
         self.plugin = plugin
+
+        # self.waitingCircle = PrismWaitingCircleManager()
 
         self.pluginDir = os.path.dirname(os.path.dirname(__file__))
         self.settingsFile = os.path.join(self.pluginDir, "DeleteFunctions_Config.json")
@@ -449,7 +455,7 @@ class Prism_DeleteFunctions_Functions(object):
         else:
             return False
 
-
+    ##########  THIS IS FOR THE PROJECT PICKER   ###################
     # #   Called with Callback - Project Browser
     # @err_catcher(name=__name__)                                 #   TODO  There is no Callback for Project Browser RCL Menu
     # def projectBrowserContextMenuRequested(self, origin, menu):
@@ -461,17 +467,17 @@ class Prism_DeleteFunctions_Functions(object):
     @err_catcher(name=__name__)
     def deleteSceneFile(self, origin, rcmenu, filePath):
 
+        self.menuContext = "Scene Files"
+
         self.loadSettings()
 
         if self.isDeleteActive() and os.path.isfile(filePath):
 
-            self.menuContext = "Scene Files"
 
             #   Retrieves File Info from Core
             try:
                 sceneData = self.core.getScenefileData(filePath)
                 sourceDir, sourceFilename = ntpath.split(sceneData["filename"])
-                version = sceneData["version"]
 
             except Exception as e:
                 msg = f"Error opening Config File {str(e)}"
@@ -479,22 +485,41 @@ class Prism_DeleteFunctions_Functions(object):
 
             projectName = self.core.projectName
 
+            if sceneData["type"] == "shot":
+                entity = sceneData["shot"]
+            else:
+                entity = sceneData["asset"]
+
+            department = sceneData["department"]
+            task = sceneData["task"]
+            version = sceneData["version"]
+
+
             deleteList = []
+
             for file in os.listdir(sourceDir):
                 if version in file:
-                    deleteList.append(file)
+                    item = {"location": version, "path": os.path.normpath(os.path.join(sourceDir, file))}
+                    deleteList.append(item)
+
+            self.core.popup(f"deleteList: {deleteList}")                                      #    TESTING
+
+
+
+            questionText = (f"Are you sure you want to Delete:\n\n"
+                            f"Version: {version}"
+                            )
+            windowTitle = f"Delete {version}"                                       #   TODO
+
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = sourceDir
-            delEntityData["delItem"] = version
-            delEntityData["delItemName"] = sourceFilename
+            delEntityData["delItemName"] = f"{entity}_{department}_{task}_{version}"
             delEntityData["deleteList"] = deleteList
-            delEntityData["questText"] = "Version"
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
 
-
-            questionText = f"Are you sure you want to Delete:\n\n{questText}: {delItem}"
-            windowTitle = f"Delete {questText}"
+            self.core.popup(f"delEntityData: {delEntityData}")                                      #    TESTING
 
             #   Adds Right Click Item
             deleteAct = QAction("Delete Version", rcmenu)
@@ -537,7 +562,6 @@ class Prism_DeleteFunctions_Functions(object):
             delEntityData = {}
             delEntityData["projectName"] = projectName
             delEntityData["sourceDir"] = os.path.dirname(deptDir)
-            delEntityData["delItem"] = deptNameFull
             delEntityData["delItemName"] = f"{sequence}_{shot}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
             delEntityData["questText"] = "Department"
@@ -582,7 +606,6 @@ class Prism_DeleteFunctions_Functions(object):
             delEntityData = {}
             delEntityData["projectName"] = projectName
             delEntityData["sourceDir"] = os.path.normpath(deptDir)
-            delEntityData["delItem"] = taskName
             delEntityData["delItemName"] = f"{sequence}_{shot}_{curDep}_{taskName}"
             delEntityData["deleteList"] = deleteList
             delEntityData["questText"] = "Task"
@@ -627,7 +650,6 @@ class Prism_DeleteFunctions_Functions(object):
             delEntityData = {}
             delEntityData["projectName"] = projectName
             delEntityData["sourceDir"] = os.path.dirname(deptDir)
-            delEntityData["delItem"] = deptNameFull
             delEntityData["delItemName"] = f"{asset}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
             delEntityData["questText"] = "Department"
@@ -669,22 +691,31 @@ class Prism_DeleteFunctions_Functions(object):
             deleteList = []
             deleteList.append(taskName)
 
+
+            questionText = f"Are you sure you want to Delete:\n\nProduct: {product}"
+            windowTitle = f"Delete Product {product}"
+
+
+            #   Populate Data to be Passed to deleteAction()
             delEntityData = {}
-            delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = os.path.normpath(deptDir)
-            delEntityData["delItem"] = taskName
-            delEntityData["delItemName"] = f"{asset}_{curDep}_{taskName}"
+            delEntityData["projectName"] = prodData["project_name"]
+            delEntityData["delItemName"] = product
             delEntityData["deleteList"] = deleteList
-            delEntityData["questText"] = "Task"
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
+
 
             deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
             deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
             rcmenu.addAction(deleteAct)
+            
 
 
     #   Called with Callback - Product Browser
     @err_catcher(name=__name__)
     def productSelectorContextMenuRequested(self, origin, viewUi, pos, rcmenu):
+
+        self.menuContext = "Product"
 
         self.loadSettings()
 
@@ -702,12 +733,7 @@ class Prism_DeleteFunctions_Functions(object):
             elif hasattr(origin, "tw_versions") and viewUi == origin.tw_versions:
                 listType = "versions"
 
-            self.menuContext = "Product"
             deleteList = []
-
-
-
-
 
             #   Case 1 - Product Indentifier
             if listType == "identifier":
@@ -732,7 +758,6 @@ class Prism_DeleteFunctions_Functions(object):
                 #   Populate Data to be Passed to deleteAction()
                 delEntityData = {}
                 delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItem"] = product
                 delEntityData["delItemName"] = product
                 delEntityData["deleteList"] = deleteList
                 delEntityData["questText"] = questionText
@@ -785,7 +810,6 @@ class Prism_DeleteFunctions_Functions(object):
 
                 delEntityData = {}
                 delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItem"] = version
                 delEntityData["delItemName"] = f"{data['product']}_{version}"
                 delEntityData["deleteList"] = deleteList
                 delEntityData["questText"] = questionText
@@ -823,16 +847,13 @@ class Prism_DeleteFunctions_Functions(object):
     def deleteAction(self, delEntityData):
 
         projectName = delEntityData["projectName"]      #   PROJECT NAME
-        # sourceDir = delEntityData["sourceDir"]          #   SOURCE DIRECTORY
-        delItem = delEntityData["delItem"]              #   NAME FOR QUESTION
         delItemName = delEntityData["delItemName"]      #   ENTITY NAME
-        deleteList = delEntityData["deleteList"]        #   ITEMS IN DIR TO COPY
-        questTitle = delEntityData["questTitle"]
+        deleteList = delEntityData["deleteList"]        #   ITEMS IN DIR TO MOVE
+        questTitle = delEntityData["questTitle"]        #   
         questText = delEntityData["questText"]          #   FOR QUESTION POPUP
 
         currentTime = datetime.now()
         timestamp = currentTime.strftime("%m/%d/%y %H:%M")
-
 
         result = self.core.popupQuestion(questText, title=questTitle)
 
@@ -840,20 +861,33 @@ class Prism_DeleteFunctions_Functions(object):
             origLocList = []
             destDir, delItemName = self.ensureDirName(delItemName)
 
-            for item in deleteList:
-                sourceItem = item["path"]
-                destItem = os.path.join(destDir, item["location"])
-                shutil.move(sourceItem, destItem)
-                origLocList.append(item)
+            if self.menuContext == "Scene Files":
 
-            fileInfo = {
+                for item in deleteList:
+                    sourceItem = item["path"]
+                    destItem = os.path.join(destDir, item["location"])
+                    subDir = os.path.join(destDir, item["location"])
+                    if not os.path.exists(subDir):
+                        os.mkdir(subDir)
+                    shutil.move(sourceItem, destItem)
+                    origLocList.append(item)
+
+            else:
+                for item in deleteList:
+                    sourceItem = item["path"]
+                    destItem = os.path.join(destDir, item["location"])
+                    shutil.move(sourceItem, destItem)
+                    origLocList.append(item)
+
+
+
+            fileInfo = {                            #   TODO CHECK IF ALL NEEDED
                 "Project": projectName,
                 "Type": self.menuContext,
                 "Entity": delItemName,
                 "Deleted": timestamp,
                 "UID": self.generateUID(),
-                "OriginalLocation": origLocList,              #   TODO LIST
-                "OriginalDirName":delItem,                      #   TODO LIST
+                "OriginalLocation": origLocList,
                 "DeletedLocation": destDir,
                 }
             
@@ -861,6 +895,7 @@ class Prism_DeleteFunctions_Functions(object):
 
         self.saveSettings()
         self.core.pb.refreshUI()
+        
     
 
     @err_catcher(name=__name__)
@@ -918,13 +953,22 @@ class Prism_DeleteFunctions_Functions(object):
             else:
                 return
             
+            # self.waitingCircle.start()      #   TESTING
+            # time.sleep(5)                   #   TESTING
+            # self.waitingCircle.stop()       #   TESTING
+
+            
         elif mode == "single":
-            questionText = f"Are you sure you want to Permanently Delete the Selected Items?\n\nThis is not Reversible."
+            selectedRow = self.table_delItems.currentRow()
+            #   Return if no row selected
+            if selectedRow == -1:
+                return
+
+            questionText = f"Are you sure you want to Permanently Delete the Selected Item?\n\nThis is not Reversible."
             result = self.core.popupQuestion(questionText, title="Permanently Delete Files")
 
             if result == "Yes":
                 # Deleting selected files in the table
-                selectedRow = self.table_delItems.currentRow()
                 selectedUID = self.table_delItems.item(selectedRow, 4).text()
 
                 # Find the dictionary in the list with the matching UID
@@ -958,15 +1002,20 @@ class Prism_DeleteFunctions_Functions(object):
 
     @err_catcher(name=__name__)                             #   TODO MORE ROBUST FILE CHECKING BEFORE DELETE
     def restoreSelected(self):
+
+        selectedRow = self.table_delItems.currentRow()
+        #   Return if no row selected
+        if selectedRow == -1:
+            return
+
         questionText = (f"Are you sure you want to Restore the selected Entity to the original location?\n\n"
-                        "The restore will overwrite any files with the same name as the deleted file(s)."
+                        "The restore will overwrite any files with the same name as the deleted files."
                         )
         title = "Restore Entity"
         result = self.core.popupQuestion(questionText, title=title)
 
         if result == "Yes":
-            # Deleting selected files in the table
-            selectedRow = self.table_delItems.currentRow()
+            # Retrieving UID from hidden table column
             selectedUID = self.table_delItems.item(selectedRow, 4).text()
 
             # Find the dictionary in the list with the matching UID
@@ -974,18 +1023,37 @@ class Prism_DeleteFunctions_Functions(object):
             origList = restoreEntity["OriginalLocation"]
 
             if restoreEntity:
-                for origItem in origList:
-                    origLocName = origItem["location"]
-                    origLocPath = origItem["path"]
-                    delLocBase = restoreEntity["DeletedLocation"]
-                    delLocation = os.path.join(delLocBase, origLocName)
+                if restoreEntity["Type"] == "Scene Files":
 
-                    if not os.path.exists(origLocPath):
-                        os.mkdir(origLocPath)
-                    
-                    for item in os.listdir(delLocation):
-                        sourceDir = os.path.join(delLocation, item)
-                        shutil.move(sourceDir, origLocPath)
+                    for origItem in origList:
+                        origLocName = origItem["location"]
+                        origLocPath = origItem["path"]
+                        origLocDir = os.path.dirname(origLocPath)
+                        delLocBase = restoreEntity["DeletedLocation"]
+                        delLocation = os.path.join(delLocBase, origLocName)
+                        
+                        if not os.path.exists(origLocDir):
+                            os.mkdir(origLocDir)
+                        
+                        for item in os.listdir(delLocation):
+                            itemPath = os.path.join(delLocation, item)
+                            shutil.move(itemPath, origLocDir)
+
+                else:
+                    for origItem in origList:
+                        origLocName = origItem["location"]
+                        origLocPath = origItem["path"]
+                        delLocBase = restoreEntity["DeletedLocation"]
+                        delLocation = os.path.join(delLocBase, origLocName)
+
+                        if not os.path.exists(origLocPath):
+                            os.mkdir(origLocPath)
+                        
+                        for item in os.listdir(delLocation):
+                            sourceDir = os.path.join(delLocation, item)
+                            shutil.move(sourceDir, origLocPath)
+
+
 
                 self.table_delItems.removeRow(selectedRow)
 
@@ -995,6 +1063,9 @@ class Prism_DeleteFunctions_Functions(object):
                 if os.path.exists(delLocBase):
                     shutil.rmtree(delLocBase)
 
+
+
+
                 self.saveSettings()
                 self.calcDelDirSize()
                 self.core.pb.refreshUI()
@@ -1002,7 +1073,7 @@ class Prism_DeleteFunctions_Functions(object):
                 pass
 
 
-    @err_catcher(name=__name__)                 #   TODO ENSURE SYNC BETWEEN DIR AND LIST
+    @err_catcher(name=__name__)                 #   TODO ENSURE SYNC BETWEEN DIR AND LIST and MAYBE READ CURRENT FILES IN DIR
     def refreshList(self):
 
         self.table_delItems.clearContents()
@@ -1035,7 +1106,31 @@ class Prism_DeleteFunctions_Functions(object):
         self.e_tempDirSize.setText(delDirSizeStr)
 
 
+######  TODO
 
+
+# class PrismWaitingCircleManager(object):
+#     def __init__(self):
+#         self.prismWaitingIcon = PrismWaitingIcon()
+#         self.showWaitingCircleFlag = False
+
+#     def show(self):
+#         self.prismWaitingIcon.showWaitingIcon()
+#         print("started")                            #   TESTING
+#         self.showWaitingCircleFlag = True
+
+#     def hide(self):
+#         self.prismWaitingIcon.hideWaitingIcon()
+#         print("stopped")                            #   TESTING
+#         self.showWaitingCircleFlag = False
+
+#     def start(self):
+#         self.show()
+#         self.prismWaitingIcon.show()
+
+#     def stop(self):
+#         self.hide()
+#         self.prismWaitingIcon.hide()
 
 
 
