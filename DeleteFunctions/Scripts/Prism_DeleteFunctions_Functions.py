@@ -468,12 +468,9 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     def deleteSceneFile(self, origin, rcmenu, filePath):
 
         self.menuContext = "Scene Files"
-
         self.loadSettings()
 
         if self.isDeleteActive() and os.path.isfile(filePath):
-
-
             #   Retrieves File Info from Core
             try:
                 sceneData = self.core.getScenefileData(filePath)
@@ -494,7 +491,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             task = sceneData["task"]
             version = sceneData["version"]
 
-
             deleteList = []
 
             for file in os.listdir(sourceDir):
@@ -502,15 +498,10 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                     item = {"location": version, "path": os.path.normpath(os.path.join(sourceDir, file))}
                     deleteList.append(item)
 
-            self.core.popup(f"deleteList: {deleteList}")                                      #    TESTING
-
-
-
             questionText = (f"Are you sure you want to Delete:\n\n"
                             f"Version: {version}"
                             )
             windowTitle = f"Delete {version}"                                       #   TODO
-
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
@@ -518,8 +509,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             delEntityData["deleteList"] = deleteList
             delEntityData["questText"] = questionText
             delEntityData["questTitle"] = windowTitle
-
-            self.core.popup(f"delEntityData: {delEntityData}")                                      #    TESTING
 
             #   Adds Right Click Item
             deleteAct = QAction("Delete Version", rcmenu)
@@ -530,20 +519,17 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     @err_catcher(name=__name__)
     def deleteShotDepartment(self, origin, rcmenu, pos):
 
+        self.menuContext = "Shot Dept"
         self.loadSettings()
 
         if self.isDeleteActive():
-
             if pos.data() == None:
                 return
             
             deptNameFull = pos.data()
-
-            self.menuContext = "Shot Dept"
-
             projectName = self.core.projectName
-
             entity = origin.getCurrentEntity()
+
             if not entity or entity["type"] not in ["asset", "shot", "sequence"]:
                 return
 
@@ -556,15 +542,21 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             else:
                 return
 
+            delItem = {"location": shot, "path": deptDir}
             deleteList = []
-            deleteList.append(deptName)
+            deleteList.append(delItem)
+
+            questionText = (f"Are you sure you want to Delete:\n\n"
+                            f"Shot Department: {deptName}"
+                            )
+            windowTitle = f"Delete {deptName}"                                       #   TODO
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = os.path.dirname(deptDir)
             delEntityData["delItemName"] = f"{sequence}_{shot}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
-            delEntityData["questText"] = "Department"
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
 
             deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
             deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
@@ -574,6 +566,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     @err_catcher(name=__name__)
     def deleteShotTask(self, origin, rcmenu, pos):
 
+        self.menuContext = "Shot Task"
         self.loadSettings()
 
         if self.isDeleteActive():
@@ -582,9 +575,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 return
             
             taskName = pos.data()
-
-            self.menuContext = "Shot Task"
-
             projectName = self.core.projectName
 
             entity = origin.getCurrentEntity()
@@ -599,16 +589,24 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 deptDir = self.core.getEntityPath(entity=entity, step=curDep)
             else:
                 return
+            taskDir = os.path.join(deptDir, taskName)
 
+            delItem = {"location": f"{shot}_{curDep}", "path": taskDir}
             deleteList = []
-            deleteList.append(taskName)
+            deleteList.append(delItem)
+
+
+            questionText = (f"Are you sure you want to Delete:\n\n"
+                            f"Shot Task: {taskName}"
+                            )
+            windowTitle = f"Delete {taskName}"                                       #   TODO
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = os.path.normpath(deptDir)
             delEntityData["delItemName"] = f"{sequence}_{shot}_{curDep}_{taskName}"
             delEntityData["deleteList"] = deleteList
-            delEntityData["questText"] = "Task"
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
 
             deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
             deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
@@ -619,17 +617,14 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     @err_catcher(name=__name__)
     def deleteAssetDepartment(self, origin, rcmenu, pos):
 
+        self.menuContext = "Asset Dept"
         self.loadSettings()
 
         if self.isDeleteActive():
-
             if pos.data() == None:
                 return
             
             deptNameFull = pos.data()
-
-            self.menuContext = "Asset Dept"
-
             projectName = self.core.projectName
 
             entity = origin.getCurrentEntity()
@@ -644,16 +639,21 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             else:
                 return
 
+            delItem = {"location": asset, "path": deptDir}
             deleteList = []
-            deleteList.append(deptName)
+            deleteList.append(delItem)
+
+            questionText = (f"Are you sure you want to Delete:\n\n"
+                            f"Asset Department: {deptName}"
+                            )
+            windowTitle = f"Delete {deptName}"                                       #   TODO
 
             delEntityData = {}
             delEntityData["projectName"] = projectName
-            delEntityData["sourceDir"] = os.path.dirname(deptDir)
             delEntityData["delItemName"] = f"{asset}_{deptNameFull}"
             delEntityData["deleteList"] = deleteList
-            delEntityData["questText"] = "Department"
-
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
 
             deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
             deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
@@ -663,6 +663,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     @err_catcher(name=__name__)
     def deleteAssetTask(self, origin, rcmenu, pos):
 
+        self.menuContext = "Asset Task"
         self.loadSettings()
 
         if self.isDeleteActive():
@@ -672,7 +673,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             
             taskName = pos.data()
 
-            self.menuContext = "Asset Task"
 
             projectName = self.core.projectName
 
@@ -687,19 +687,23 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 deptDir = self.core.getEntityPath(entity=entity, step=curDep)
             else:
                 return
+            
+            taskDir = os.path.join(deptDir, taskName)
 
+            delItem = {"location": f"{asset}_{curDep}", "path": taskDir}
             deleteList = []
-            deleteList.append(taskName)
+            deleteList.append(delItem)
 
 
-            questionText = f"Are you sure you want to Delete:\n\nProduct: {product}"
-            windowTitle = f"Delete Product {product}"
-
+            questionText = (f"Are you sure you want to Delete:\n\n"
+                            f"Shot Task: {taskName}"
+                            )
+            windowTitle = f"Delete {taskName}"                                       #   TODO
 
             #   Populate Data to be Passed to deleteAction()
             delEntityData = {}
-            delEntityData["projectName"] = prodData["project_name"]
-            delEntityData["delItemName"] = product
+            delEntityData["projectName"] = projectName
+            delEntityData["delItemName"] = f"{asset}_{curDep}_{taskName}"
             delEntityData["deleteList"] = deleteList
             delEntityData["questText"] = questionText
             delEntityData["questTitle"] = windowTitle
@@ -713,14 +717,12 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     #   Called with Callback - Product Browser
     @err_catcher(name=__name__)
-    def productSelectorContextMenuRequested(self, origin, viewUi, pos, rcmenu):
+    def productSelectorContextMenuRequested(self, origin, viewUi, pos, rcmenu):             #   TODO CLEANUP
 
         self.menuContext = "Product"
-
         self.loadSettings()
 
         if self.isDeleteActive():
-
             version = origin.getCurrentVersion()
             if not version:
                 return
@@ -737,7 +739,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
             #   Case 1 - Product Indentifier
             if listType == "identifier":
-
                 item = origin.tw_identifier.itemAt(pos)
                 prodData = item.data(0, Qt.UserRole)
                 paths = prodData["paths"]
@@ -791,7 +792,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 product = prodData["product"]
 
                 # Consolidates locations and paths lists to correlate path name to directory
-                locsList = []
+                locsList = []                                                                                               #   TODO FIX ASSET PRODUCTS
                 for location in data['locations']:
                     matchingPathItem = next((pathItem for pathItem in paths if pathItem['path'] in location), None)
                     if matchingPathItem:
@@ -879,8 +880,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                     shutil.move(sourceItem, destItem)
                     origLocList.append(item)
 
-
-
             fileInfo = {                            #   TODO CHECK IF ALL NEEDED
                 "Project": projectName,
                 "Type": self.menuContext,
@@ -953,7 +952,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             else:
                 return
             
-            # self.waitingCircle.start()      #   TESTING
+            # self.waitingCircle.start()      #   TESTING FOR WAITING CIRCLE
             # time.sleep(5)                   #   TESTING
             # self.waitingCircle.stop()       #   TESTING
 
@@ -1023,7 +1022,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             origList = restoreEntity["OriginalLocation"]
 
             if restoreEntity:
-                if restoreEntity["Type"] == "Scene Files":
+                if restoreEntity["Type"] == "Scene Files":                  #   TODO CLEANUP
 
                     for origItem in origList:
                         origLocName = origItem["location"]
