@@ -82,16 +82,22 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
         #   Callbacks                                           #   TODO    Doesn't seem to be a callback for the Project Chooser
         # self.core.registerCallback("projectBrowserContextMenuRequested", self.projectBrowserContextMenuRequested, plugin=self)      
+                                                                #   TODO    DELETE ENTITY
+        # self.core.registerCallback("sceneBrowserContextMenuRequested", self.deleteEntity, plugin=self)
+
 
         self.core.registerCallback("openPBFileContextMenu", self.deleteSceneFile, plugin=self)
         self.core.registerCallback("openPBShotDepartmentContextMenu", self.deleteShotDepartment, plugin=self)
         self.core.registerCallback("openPBShotTaskContextMenu", self.deleteShotTask, plugin=self)
         self.core.registerCallback("openPBAssetDepartmentContextMenu", self.deleteAssetDepartment, plugin=self)
         self.core.registerCallback("openPBAssetTaskContextMenu", self.deleteAssetTask, plugin=self)
+        self.core.registerCallback("productSelectorContextMenuRequested", self.deleteProduct, plugin=self)  
 
-        self.core.registerCallback("productSelectorContextMenuRequested", self.productSelectorContextMenuRequested, plugin=self)  
 
-        # self.core.registerCallback("mediaPlayerContextMenuRequested", self.mediaPlayerContextMenuRequested, plugin=self)        
+        self.core.registerCallback("openPBListContextMenu", self.deleteMedia, plugin=self)        
+
+
+
         # self.core.registerCallback("textureLibraryTextureContextMenuRequested", self.textureLibraryTextureContextMenuRequested, plugin=self)
         
         self.core.registerCallback("userSettings_loadUI", self.userSettings_loadUI, plugin=self)
@@ -455,12 +461,28 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         else:
             return False
 
+
+
+
+
+
     ##########  THIS IS FOR THE PROJECT PICKER   ###################
     # #   Called with Callback - Project Browser
     # @err_catcher(name=__name__)                                 #   TODO  There is no Callback for Project Browser RCL Menu
     # def projectBrowserContextMenuRequested(self, origin, menu):
 
     #     pass
+
+
+    #   Called with Callback - SceneFiles Browser                                   #   TODO    DELETE ENTITY
+    # @err_catcher(name=__name__)
+    # def deleteEntity(self, origin, menuType, menu):
+
+    #     self.core.popup("HERE!")                                      #    TESTING
+
+
+
+
 
 
     #   Called with Callback - SceneFiles Browser
@@ -717,7 +739,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     #   Called with Callback - Product Browser
     @err_catcher(name=__name__)
-    def productSelectorContextMenuRequested(self, origin, viewUi, pos, rcmenu):             #   TODO CLEANUP
+    def deleteProduct(self, origin, viewUi, pos, rcmenu):             #   TODO CLEANUP
 
         self.menuContext = "Product"
         self.loadSettings()
@@ -726,14 +748,11 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             version = origin.getCurrentVersion()
             if not version:
                 return
-            
-            #   Checks which Table the right-click originated
-            #   Case 1
-            if hasattr(origin, "tw_identifier") and viewUi == origin.tw_identifier:
+
+            if viewUi == origin.tw_identifier:
                 listType = "identifier"
-            #   Case 2    
-            elif hasattr(origin, "tw_versions") and viewUi == origin.tw_versions:
-                listType = "versions"
+            elif viewUi == origin.tw_versions:
+                listType = "version"
 
             deleteList = []
 
@@ -783,7 +802,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
 
             #   Case 2 - Product Version
-            elif listType == "versions":
+            elif listType == "version":
                 #   Retreives Product Data
                 data = origin.getCurrentProduct()
                 paths = data["paths"]
@@ -857,6 +876,115 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                     rcmenu.addMenu(removeMenu)
 
 
+
+    @err_catcher(name=__name__)
+    def deleteMedia(self, origin, rcmenu, lw, item, path):
+
+        if not item:
+            return
+        
+        self.menuContext = "Media"
+        self.loadSettings()
+
+        self.mediaViewer = origin.w_preview.mediaPlayer
+
+        if lw == origin.tw_identifier:
+            itemName = item.text(0)
+        else:
+            itemName = item.text()
+
+        entity = origin.getCurrentEntity()
+
+        if not entity:
+            return
+
+        if lw == origin.tw_identifier:
+            listType = "identifier"
+            if itemName:
+                data = item.data(0, Qt.UserRole)
+
+        elif lw == origin.lw_version:
+            listType = "version"
+            if itemName:
+                data = item.data(Qt.UserRole)
+            else:
+                identifier = origin.getCurrentIdentifier()
+                if not identifier:
+                    return
+
+        identifier = data["identifier"]
+
+        if data["type"] == "asset":
+            asset = data["asset"]
+            entity = f"{asset}_{identifier}"
+        else:
+            sequence = data["sequence"]
+            shot = data["shot"]
+            entity = f"{sequence}_{shot}_{identifier}"
+
+        deleteList = []
+        path = data["path"]
+
+        #   Retrieves Locations Data
+        saveLocs = origin.core.paths.getExportProductBasePaths()
+    
+        #   Constructs deleteList with Location Names and Paths
+        for loc in saveLocs:
+            newPath = self.core.convertPath(path, target=loc)
+            if os.path.exists(newPath):
+                locItem = {"location": loc, "path": newPath}
+                deleteList.append(locItem)
+
+        delEntityData = {}
+        delEntityData["projectName"] = data["project_name"]
+        delEntityData["deleteList"] = deleteList
+
+        #   Case 1 - Media Indentifier
+        if listType == "identifier":
+
+            questionText = f"Are you sure you want to Delete:\n\nMedia Identifier: {identifier}\n\n"
+            windowTitle = f"Delete Media: {identifier}"
+
+            #   Populate Data to be Passed to deleteAction()
+            delEntityData["delItemName"] = entity
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
+
+            #   Add Command to Right-click Menu
+            deleteAct = QAction(f"Delete {identifier}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
+
+        #   Case 2 - Media Version
+        elif listType == "version":
+
+            version = data["version"]
+
+            questionText = f"Are you sure you want to Delete:\n\nMedia Version: {version}"
+            windowTitle = f"Delete Media Version: {version}"
+
+            delEntityData["delItemName"] = f"{entity}_{version}"
+            delEntityData["questText"] = questionText
+            delEntityData["questTitle"] = windowTitle
+
+            #   Adds right-click Item
+            deleteAct = QAction(f"Delete Version {version}", rcmenu)
+            deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+            rcmenu.addAction(deleteAct)
+
+            #   If there are multiple locations, will add Remove Menu
+            if len(deleteList) > 1:
+                removeMenu = QMenu(f"Remove Verion {version} from", rcmenu)
+
+                #   Adds Remove Menu items for each location
+                for loc in deleteList:
+                    removeFromAct = QAction(loc["location"], rcmenu)
+                    removeFromAct.triggered.connect(partial(self.removeAction, delEntityData, loc))
+                    removeMenu.addAction(removeFromAct)
+
+                rcmenu.addMenu(removeMenu)
+
+
     #   Used to Remove Item from Specific Location
     @err_catcher(name=__name__)
     def removeAction(self, delEntityData, loc):
@@ -876,6 +1004,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         questTitle = delEntityData["questTitle"]        #   
         questText = delEntityData["questText"]          #   FOR QUESTION POPUP
 
+        # self.core.popup(f"deleteList: {deleteList}")                                      #    TESTING
+
         currentTime = datetime.now()
         timestamp = currentTime.strftime("%m/%d/%y %H:%M")
 
@@ -883,6 +1013,11 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
         if result == "Yes":
             try:
+                if self.menuContext == "Media":
+                    viewOrigState = self.mediaViewer.state
+                    self.mediaViewer.state = "disabled"
+                    self.mediaViewer.updatePreview()
+
                 origLocList = []
                 destDir, delItemName = self.ensureDirName(delItemName)
 
@@ -892,6 +1027,9 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                         sourceItem = item["path"]
                         destItem = os.path.join(destDir, item["location"])
                         subDir = os.path.join(destDir, item["location"])
+
+                        # self.core.popup(f"from: {sourceItem} to {destItem}")                                      #    TESTING
+
                         if not os.path.exists(subDir):
                             os.mkdir(subDir)
                         shutil.move(sourceItem, destItem)
@@ -901,10 +1039,13 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                     for item in deleteList:
                         sourceItem = item["path"]
                         destItem = os.path.join(destDir, item["location"])
-                        shutil.move(sourceItem, destItem)
+
+                        # self.core.popup(f"from: {sourceItem} to {destItem}")                                      #    TESTING
+
+                        shutil.move(sourceItem, destItem)                               #   TODO DO I NEED MKDIR HERE
                         origLocList.append(item)
 
-                fileInfo = {                            #   TODO CHECK IF ALL NEEDED
+                fileInfo = {                                                            #   TODO CHECK IF ALL NEEDED
                     "Project": projectName,
                     "Type": self.menuContext,
                     "Entity": delItemName,
@@ -916,16 +1057,24 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 
                 self.delFileInfoList.append(fileInfo)
 
+                if self.menuContext == "Media":
+                    self.mediaViewer.state = viewOrigState
+                    self.mediaViewer.updatePreview()
+
                 self.saveSettings()
                 self.core.pb.refreshUI()
 
             except Exception as e:
                 if self.menuContext == "Product":
-                    self.core.popup(f"Unable to Delete: {delItemName}\n\nTry closing the Viewer Window\n\n{e}")                 #   TODO    ADD DEBUG
+                    self.core.popup(f"Unable to Delete: {delItemName}\n\nTry closing the Viewer Window\n\nError:\n\n{e}")                 #   TODO    ADD DEBUG
+
+                elif self.menuContext == "Media":
+                    self.core.popup(f"Unable to Delete: {delItemName}\n\nTry disabling the Media Viewer\n\nError:\n\n{e}")                 #   TODO    ADD DEBUG
+
                 else:
                     self.core.popup(f"Unable to Delete: {delItemName}\n\n{e}")                 #   TODO    ADD DEBUG
 
-        
+                # shutil.rmtree(subDir)                                                         #   TODO DELTE DIR IF FAIL
     
 
     @err_catcher(name=__name__)
