@@ -92,10 +92,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.core.registerCallback("openPBAssetDepartmentContextMenu", self.deleteAssetDepartment, plugin=self)
         self.core.registerCallback("openPBAssetTaskContextMenu", self.deleteAssetTask, plugin=self)
         self.core.registerCallback("productSelectorContextMenuRequested", self.deleteProduct, plugin=self)  
-
-
         self.core.registerCallback("openPBListContextMenu", self.deleteMedia, plugin=self)        
-
 
 
         # self.core.registerCallback("textureLibraryTextureContextMenuRequested", self.textureLibraryTextureContextMenuRequested, plugin=self)
@@ -505,7 +502,9 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             projectName = self.core.projectName
 
             if sceneData["type"] == "shot":
-                entity = sceneData["shot"]
+                sequence = sceneData["sequence"]
+                shot = sceneData["shot"]
+                entity = f"{sequence}_{shot}"
             else:
                 entity = sceneData["asset"]
 
@@ -734,7 +733,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
             deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
             rcmenu.addAction(deleteAct)
-            
 
 
     #   Called with Callback - Product Browser
@@ -748,65 +746,18 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             version = origin.getCurrentVersion()
             if not version:
                 return
-
+            #   Checks which Table was called
             if viewUi == origin.tw_identifier:
                 listType = "identifier"
             elif viewUi == origin.tw_versions:
                 listType = "version"
 
-            deleteList = []
-
-            #   Case 1 - Product Indentifier
             if listType == "identifier":
-                item = origin.tw_identifier.itemAt(pos)
                 #   Retrieves Product Data
+                item = origin.tw_identifier.itemAt(pos)
                 prodData = item.data(0, Qt.UserRole)
-                product = prodData["product"]
 
-                if prodData["type"] == "asset":
-                    asset = prodData["asset"]
-                    delItemName = f"{asset}_{product}"
-                else:
-                    sequence = prodData["sequence"]
-                    shot = prodData["shot"]
-                    delItemName = f"{sequence}_{shot}_{product}"
-
-                #   Retrieves Locations Data
-                saveLocs = origin.core.paths.getExportProductBasePaths()
-
-                #   Combine Dicts to correlate Location Name and Path
-                for loc in prodData["locations"]:
-                    for location, pathStart in saveLocs.items():
-                        if loc.startswith(pathStart):
-                            deleteList.append({
-                                "location": location,
-                                "path": loc
-                            })
-                            break
-
-                questionText = f"Are you sure you want to Delete:\n\nProduct: {product}"
-                windowTitle = f"Delete Product {product}"
-
-                #   Populate Data to be Passed to deleteAction()
-                delEntityData = {}
-                delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItemName"] = delItemName
-                delEntityData["deleteList"] = deleteList
-                delEntityData["questText"] = questionText
-                delEntityData["questTitle"] = windowTitle
-
-                #   Add Command to Right-click Menu
-                deleteAct = QAction(f"Delete {product}", viewUi)
-                deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
-                rcmenu.addAction(deleteAct)
-
-
-            #   Case 2 - Product Version
             elif listType == "version":
-                #   Retreives Product Data
-                data = origin.getCurrentProduct()
-                paths = data["paths"]
-                
                 #   Gets Source Path from Last Column - Assuming path is always last Column
                 row = viewUi.rowAt(pos.y())
                 numCols = viewUi.columnCount()
@@ -817,44 +768,58 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 infoPath = self.core.getVersioninfoPath(infoFolder)
                 prodData = self.core.getConfig(configPath=infoPath)
 
+                #   Retrieves Product Data
+                data = origin.getCurrentProduct()
+
                 version = prodData["version"]
-                product = prodData["product"]
+                prodData["path"] = os.path.join(data["path"], version)
 
+            product = prodData["product"]
+            path = prodData["path"]
 
-                if prodData["type"] == "asset":
-                    asset = prodData["asset"]
-                    delItemName = f"{asset}_{product}_{version}"
-                else:
-                    sequence = prodData["sequence"]
-                    shot = prodData["shot"]
-                    delItemName = f"{sequence}_{shot}_{product}_{version}"
+            if prodData["type"] == "asset":
+                asset = prodData["asset"]
+                entity = f"{asset}_{product}"
+            else:
+                sequence = prodData["sequence"]
+                shot = prodData["shot"]
+                entity = f"{sequence}_{shot}_{product}"
 
-                #   Retrieves Locations Data
-                saveLocs = origin.core.paths.getExportProductBasePaths()
+            deleteList = []
+        #   Retrieves Locations Data
+            saveLocs = origin.core.paths.getExportProductBasePaths()
 
-                #   Combine Dicts to correlate Location Name and Path
-                locsList = []
-                for loc in data["locations"]:
-                    for location, pathStart in saveLocs.items():
-                        if loc.startswith(pathStart):
-                            locsList.append({
-                                "location": location,
-                                "path": os.path.join(loc, version)
-                            })
-                            break
+        #   Constructs deleteList with Location Names and Paths
+            for loc in saveLocs:
+                newPath = self.core.convertPath(path, target=loc)
+                if os.path.exists(newPath):
+                    locItem = {"location": loc, "path": newPath}
+                    deleteList.append(locItem)
 
-                #   Adds Version to deleteList if present in Location Dirs
-                for loc in locsList:
-                    if os.path.exists(loc["path"]):
-                        deleteList.append(loc)                  
+            delEntityData = {}
+            delEntityData["projectName"] = prodData["project_name"]
+            delEntityData["deleteList"] = deleteList
+
+            if listType == "identifier":
+
+                questionText = f"Are you sure you want to Delete:\n\nProduct: {product}"
+                windowTitle = f"Delete Product {product}"
+
+                delEntityData["delItemName"] = entity
+                delEntityData["questText"] = questionText
+                delEntityData["questTitle"] = windowTitle
+
+                #   Add Command to Right-click Menu
+                deleteAct = QAction(f"Delete {product}", viewUi)
+                deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
+                rcmenu.addAction(deleteAct)
+
+            elif listType == "version":
 
                 questionText = f"Are you sure you want to Delete:\n\nProduct Version: {version}"
                 windowTitle = f"Delete Product Version {version}"
 
-                delEntityData = {}
-                delEntityData["projectName"] = prodData["project_name"]
-                delEntityData["delItemName"] = delItemName
-                delEntityData["deleteList"] = deleteList
+                delEntityData["delItemName"] = f"{entity}_{version}"
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
 
