@@ -41,7 +41,7 @@
 ####################################################
 
 
-import os
+import os                                                           #   TODO    CLEANUP
 import ntpath
 import subprocess
 import json
@@ -70,94 +70,7 @@ from PrismUtils.Decorators import err_catcher_plugin as err_catcher
 logger = logging.getLogger(__name__)
 
 
-class AutoPurger(object):
-    def __init__(self, core, settingsFile, delDirectory):
-        self.core = core
-        self.timer = None
-        self.dirCheckInterval = 600  #   seconds
-        self.settingsFile = settingsFile
-        self.delDirectory = delDirectory
-
-
-    def checkDir(self):
-
-        logger.info(f"AutoPurge--Checking directory: {self.delDirectory}")
-
-        delTimeCutoff_str = self.getDelTimeCutoff()
-        logger.debug(f"Files older than {delTimeCutoff_str} will be purged.")
-
-        self.executePurge(delTimeCutoff_str)
-
-        # Schedule the next check
-        logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")
-
-        self.timer = threading.Timer(self.dirCheckInterval, self.checkDir)
-        self.timer.start()
-
-
-    def getDelTimeCutoff(self):
-        currentDateTime = datetime.now()
-        delTimeCutoff = currentDateTime - timedelta(hours=self.deleteInterval)
-        delTimeCutoff_str = delTimeCutoff.strftime('%m/%d/%y %H:%M')
-
-        return delTimeCutoff_str
-
-
-    def executePurge(self, delTimeCutoff_str):
-        
-        with open(self.settingsFile, 'r') as file:
-            data = json.load(file)
-
-        itemsList = data.get("Items", [])
-
-        itemsToDelete = []
-        for item in itemsList:
-            deletedTime_str = item.get("Deleted", "")
-
-            # Convert the "Deleted" date strings to datetime
-            delTimeCutoff = datetime.strptime(delTimeCutoff_str, '%m/%d/%y %H:%M')
-            deletedTime = datetime.strptime(deletedTime_str, '%m/%d/%y %H:%M')
-
-            # Check if the item's "Deleted" date is less than delTimeCutoff
-            if deletedTime < delTimeCutoff:
-                itemsToDelete.append(item)
-
-        for item in itemsToDelete:
-            try:
-                logger.debug(f"Purging: {item['DeletedLocation']}")
-                shutil.rmtree(item['DeletedLocation'])
-                logger.info(f"SUCCESS: Purged {item['DeletedLocation']}")
-
-                # Remove the deleted item from the data dictionary
-                itemsList.remove(item)
-
-            except Exception as e:
-                logger.warning(f"Unable to purge: {item['DeletedLocation']}")
-                logger.warning(e)
-
-        # Save the updated data back to the settings file
-        data["Items"] = itemsList
-        with open(self.settingsFile, 'w') as file:
-            json.dump(data, file, indent=4)
-
-
-    def run(self, interval):
-
-        self.deleteInterval = interval
-        logger.info("Starting AutoPurge Timer")
-        logger.info(f"AutoPurge Interval: {interval}")
-        logger.info(f"Deleted files older than {interval}hrs will be purged")
-
-        self.checkDir()
-
-
-    def stop(self):
-        if self.timer:
-            self.timer.cancel()
-
-
-
-class Prism_DeleteFunctions_Functions(object):                      #   TODO    ADD DEBUG STATEMENTS
+class Prism_DeleteFunctions_Functions(object):
     def __init__(self, core, plugin):
         self.core = core
         self.plugin = plugin
@@ -165,15 +78,16 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.pluginDir = os.path.dirname(os.path.dirname(__file__))
         self.settingsFile = os.path.join(self.pluginDir, "DeleteFunctions_Config.json")
 
-        self.loadedPlugins = []
+        self.loadedPlugins = []                                 #   NEEDED ???
         self.delDirectory = None
         self.deleteActive = False
         self.delFileInfoList = []
 
         self.loadSettings()
 
+        #   Creates autoPurger timer instance
         self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
-        self.updateAutoPurger(launch=True)
+        self.updateAutoPurger(mode="launch")
 
 
 
@@ -189,31 +103,13 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.core.registerCallback("openPBAssetDepartmentContextMenu", self.deleteAssetDepartment, plugin=self)
         self.core.registerCallback("openPBAssetTaskContextMenu", self.deleteAssetTask, plugin=self)
         self.core.registerCallback("productSelectorContextMenuRequested", self.deleteProduct, plugin=self)  
-        self.core.registerCallback("openPBListContextMenu", self.deleteMedia, plugin=self)        
+        self.core.registerCallback("openPBListContextMenu", self.deleteMedia, plugin=self)      
 
-
+        #   TODO    GET MORE INFO FOR LIBRARY ITEMS
         self.core.registerCallback("textureLibraryTextureContextMenuRequested", self.deleteLibraryItem, plugin=self)
         
         self.core.registerCallback("userSettings_loadUI", self.userSettings_loadUI, plugin=self)
         self.core.registerCallback("onUserSettingsSave", self.saveSettings, plugin=self)
-
-
-    # Launches and updates AutoPurger
-    @err_catcher(name=__name__)
-    def updateAutoPurger(self, launch=False):
-
-        if not launch:
-            logger.debug("Stopping AutoPurger")
-            self.autoPurger.stop()
-            self.updateInterval = self.spb_hours.value()
-
-        if self.updateInterval >0:
-            logger.debug("Starting AutoPurger")
-            self.autoPurger.run(self.updateInterval)
-        else:
-            logger.info("AutoPurger Disabled")
-
-        self.saveSettings()
 
 
     # if returns true, the plugin will be loaded by Prism
@@ -231,7 +127,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
 
     #   Check Loaded Plugins
-    @err_catcher(name=__name__)                                     #   NEEDED ???
+    @err_catcher(name=__name__)                                     #   TODO    NEEDED ???
     def getLoadedPlugins(self):
         logger.debug("Getting Loaded Plugins")
 
@@ -320,7 +216,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.hotzSpacer1 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         # Create widgets for the additional items
-        self.l_tempDirSizeLabel = QLabel("Delete folder centents: ")                  #   TODO    CHANGE TITLE
+        self.l_tempDirSizeLabel = QLabel("Delete folder centents: ")
         self.e_tempDirSize = QLineEdit()
         self.e_tempDirSize.setReadOnly(True)
         self.e_tempDirSize.setFixedWidth(100)  # Set the width
@@ -343,10 +239,10 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.table_delItems.setHorizontalHeaderLabels(["Project", "Type", "Entity", "Deleted"])  # Set column headers
 
         # # Set column widths
-        self.table_delItems.setColumnWidth(0, 150)  # Project column
-        self.table_delItems.setColumnWidth(1, 150)  # Type column
-        # self.table_delItems.setColumnWidth(1, -1)  # File column (stretch to fill)
-        self.table_delItems.setColumnWidth(3, 150)  # Deleted column
+        self.table_delItems.setColumnWidth(0, 150)      # Project column
+        self.table_delItems.setColumnWidth(1, 150)      # Type column
+        # self.table_delItems.setColumnWidth(1, -1)     # File column (stretch to fill)
+        self.table_delItems.setColumnWidth(3, 150)      # Deleted column
 
         # Set column stretch
         self.table_delItems.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # File column (stretch to fill)
@@ -360,6 +256,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         #   Hides UID Column
         self.table_delItems.setColumnHidden(4, True)
 
+
+
         # Set items to be read-only                                                         #   TODO READONLY NOT WORKING
         for row in range(self.table_delItems.rowCount()):
             for col in range(self.table_delItems.columnCount()):
@@ -367,6 +265,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 item.setReadOnly(True)
                 # item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make the item read-only
                 self.table_delItems.setItem(row, col, item)
+
+
 
         tip = ("Deleted files currently in Delete Dir.  These files will be automatically\n"
                "purged based on time set above.\n"
@@ -413,13 +313,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.lo_buttonBox.addWidget(self.but_purgeSelected)
         self.lo_buttonBox.addWidget(self.but_purgeAll)
 
-        # Add the button box layout to the QVBoxLayout
         self.lo_deleteDirectory.addLayout(self.lo_buttonBox)
-
-        # Set the layout for the QGroupBox
         self.gb_deleteDirectory.setLayout(self.lo_deleteDirectory)
-
-        # Add the QGroupBox to the main layout
         origin.lo_deleteMenu.addWidget(self.gb_deleteDirectory)
 
         # Add Tab to User Settings
@@ -534,10 +429,10 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                         # Clear the existing rows in the table
                         self.table_delItems.setRowCount(0)
 
-                        #   Temporalily disable sorting for table load
+                        #   Temporalily disable sorting to load table correctly
                         self.table_delItems.setSortingEnabled(False)
 
-                        # Populate the table with data from self.delFileInfoList
+                        # Populate the table with data from delFileInfoList
                         for item in self.delFileInfoList:
                             rowPosition = self.table_delItems.rowCount()
                             self.table_delItems.insertRow(rowPosition)
@@ -613,6 +508,30 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             logger.warning(f"ERROR: Unable to save Settings file:  {e}")
 
 
+    # Launches and updates AutoPurger
+    @err_catcher(name=__name__)
+    def updateAutoPurger(self, mode="refresh"):
+
+        #   TODO    TRYING TO BLOCK SECOND TIMER BEING CREATED FROM DCC
+        if mode == "launch":
+            if self.autoPurger.isRunning():
+                return
+        #   Used when the duration is changed
+        if mode ==  "refresh":
+            logger.debug("Stopping AutoPurger")
+            self.autoPurger.stop()
+            self.updateInterval = self.spb_hours.value()
+
+        #   If interval is Zero, the autoPurge is not used
+        if self.updateInterval >0:
+            logger.debug("Starting AutoPurger")
+            self.autoPurger.run(self.updateInterval)
+        else:
+            logger.info("AutoPurger Disabled")
+
+        self.saveSettings()
+
+
 
 
     ##########  THIS IS FOR THE PROJECT PICKER   ###################
@@ -633,19 +552,18 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
 
 
-
     #   Called with Callback - SceneFiles Browser
     @err_catcher(name=__name__)
     def deleteSceneFile(self, origin, rcmenu, filePath):
-
         self.menuContext = "Scene Files"
         self.loadSettings()
 
         if self.isDeleteActive() and os.path.isfile(filePath):
-            #   Retrieves File Info from Core
 
             logger.debug("Loading Scene Data")
+
             try:
+                #   Retrieves File Info from Core
                 sceneData = self.core.getScenefileData(filePath)
                 sourceDir, sourceFilename = ntpath.split(sceneData["filename"])
 
@@ -662,8 +580,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 task = sceneData["task"]
                 version = sceneData["version"]
 
+                #   Creates deleteList from items in Dir
                 deleteList = []
-
                 for file in os.listdir(sourceDir):
                     if version in file:
                         item = {"location": version, "path": os.path.normpath(os.path.join(sourceDir, file))}
@@ -674,6 +592,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete {version}"                                       #   TODO
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{entity}_{department}_{task}_{version}"
@@ -694,7 +613,6 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     @err_catcher(name=__name__)
     def deleteShotDepartment(self, origin, rcmenu, pos):
-
         self.menuContext = "Shot Dept"
         self.loadSettings()
 
@@ -703,6 +621,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 if pos.data() == None:
                     return
                 
+                #   Gets data from Core
                 deptNameFull = pos.data()
                 projectName = self.core.projectName
                 entity = origin.getCurrentEntity()
@@ -719,6 +638,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 else:
                     return
 
+                #   Creates deleteList from folder
                 delItem = {"location": shot, "path": deptDir}
                 deleteList = []
                 deleteList.append(delItem)
@@ -728,6 +648,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete {deptName}"                                       #   TODO
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{sequence}_{shot}_{deptNameFull}"
@@ -735,6 +656,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
 
+                #   Adds Right Click Item
                 deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
                 deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
                 rcmenu.addAction(deleteAct)
@@ -756,6 +678,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 if pos.data() == None:
                     return
                 
+                #   Gets data from Core
                 taskName = pos.data()
                 projectName = self.core.projectName
 
@@ -773,6 +696,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                     return
                 taskDir = os.path.join(deptDir, taskName)
 
+
                 delItem = {"location": f"{shot}_{curDep}", "path": taskDir}
                 deleteList = []
                 deleteList.append(delItem)
@@ -782,6 +706,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete {taskName}"                                       #   TODO
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{sequence}_{shot}_{curDep}_{taskName}"
@@ -789,6 +714,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
 
+                #   Adds Right Click Item
                 deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
                 deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
                 rcmenu.addAction(deleteAct)
@@ -810,6 +736,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 if pos.data() == None:
                     return
                 
+                #   Gets data from Core
                 deptNameFull = pos.data()
                 projectName = self.core.projectName
 
@@ -834,6 +761,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete {deptName}"                                       #   TODO
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{asset}_{deptNameFull}"
@@ -841,6 +769,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
 
+                #   Adds Right Click Item
                 deleteAct = QAction(f"Delete Dept: {deptNameFull}", rcmenu)
                 deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
                 rcmenu.addAction(deleteAct)
@@ -858,11 +787,11 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         self.loadSettings()
 
         if self.isDeleteActive():
-
             try:
                 if pos.data() == None:
                     return
                 
+                #   Gets data from Core
                 taskName = pos.data()
                 projectName = self.core.projectName
 
@@ -889,7 +818,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete {taskName}"                                       #   TODO
 
-                #   Populate Data to be Passed to deleteAction()
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{asset}_{curDep}_{taskName}"
@@ -897,7 +826,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 delEntityData["questText"] = questionText
                 delEntityData["questTitle"] = windowTitle
 
-
+                #   Adds Right Click Item
                 deleteAct = QAction(f"Delete Task: {taskName}", rcmenu)
                 deleteAct.triggered.connect(lambda: self.deleteAction(delEntityData))
                 rcmenu.addAction(deleteAct)
@@ -910,7 +839,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     #   Called with Callback - Product Browser
     @err_catcher(name=__name__)
-    def deleteProduct(self, origin, viewUi, pos, rcmenu):             #   TODO CLEANUP
+    def deleteProduct(self, origin, viewUi, pos, rcmenu):
 
         self.menuContext = "Product"
         self.loadSettings()
@@ -971,6 +900,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                         locItem = {"location": loc, "path": newPath}
                         deleteList.append(locItem)
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = prodData["project_name"]
                 delEntityData["deleteList"] = deleteList
@@ -1029,8 +959,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
         if self.deleteActive:
             try:
-                self.mediaViewer = origin.w_preview.mediaPlayer
-
+                #   From where right-click originated
                 if lw == origin.tw_identifier:
                     itemName = item.text(0)
                 else:
@@ -1040,7 +969,8 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
                 if not entity:
                     return
-
+                
+                #   Obtaining data based on where right-click originated
                 if lw == origin.tw_identifier:
                     listType = "identifier"
                     if itemName:
@@ -1164,7 +1094,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 filename = os.path.basename(filePath)
                 fileDir = os.path.basename(os.path.dirname(filePath))
 
-
+                #   Constructs deleteList with Location Names and Paths
                 locItem = {"location": fileDir, "path": filePath}
                 deleteList.append(locItem)
 
@@ -1175,6 +1105,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 )
                 windowTitle = f"Delete Library Item"                                       #   TODO
 
+                #   Builds delEntityData to be passed to deleteAction
                 delEntityData = {}
                 delEntityData["projectName"] = projectName
                 delEntityData["delItemName"] = f"{projectName}_{filename}"
@@ -1213,20 +1144,23 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
         projectName = delEntityData["projectName"]      #   PROJECT NAME
         delItemName = delEntityData["delItemName"]      #   ENTITY NAME
         deleteList = delEntityData["deleteList"]        #   ITEMS IN DIR TO MOVE
-        questTitle = delEntityData["questTitle"]        #   
+        questTitle = delEntityData["questTitle"]        #   FOR QUESTION POPUP
         questText = delEntityData["questText"]          #   FOR QUESTION POPUP
 
         # self.core.popup(f"deleteList: {deleteList}")                                      #    TESTING
 
+        #   Make timestamp
         currentTime = datetime.now()
         timestamp = currentTime.strftime("%m/%d/%y %H:%M")
 
+        #   Asks Popup Question
         result = self.core.popupQuestion(questText, title=questTitle)
 
         if result == "Yes":
             logger.debug(f"Deleting: {delItemName}")
 
             try:
+                #   Temp disable Media Player to allow for deletion
                 if self.menuContext == "Media":
                     viewOrigState = self.mediaViewer.state
                     self.mediaViewer.state = "disabled"
@@ -1235,9 +1169,10 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 origLocList = []
                 destDir, delItemName = self.ensureDirName(delItemName)
 
+                #   For cases that just delete files in a Dir
                 if self.menuContext in ["Scene Files", "Library Item"]:
-
                     for item in deleteList:
+                        #   Make dict with location details
                         sourceItem = item["path"]
                         destItem = os.path.join(destDir, item["location"])
                         subDir = os.path.join(destDir, item["location"])
@@ -1250,6 +1185,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                         origLocList.append(item)
 
                 else:
+                    #   For cases that delete an entire Dir
                     for item in deleteList:
                         sourceItem = item["path"]
                         destItem = os.path.join(destDir, item["location"])
@@ -1259,6 +1195,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                         shutil.move(sourceItem, destItem)                               #   TODO DO I NEED MKDIR HERE ???
                         origLocList.append(item)
 
+                #   Makes item dict to be saved in "Items" in settingsFile
                 fileInfo = {
                     "Project": projectName,
                     "Type": self.menuContext,
@@ -1271,12 +1208,14 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 
                 self.delFileInfoList.append(fileInfo)
 
+                #   Restore Media Player to orignal state
                 if self.menuContext == "Media":
                     self.mediaViewer.state = viewOrigState
                     self.mediaViewer.updatePreview()
 
                 logger.debug(f"SUCCESS: {delItemName} deleted")
                 self.saveSettings()
+                #   Refresh ProjectBrowser
                 self.core.pb.refreshUI()
 
             except Exception as e:
@@ -1299,6 +1238,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
     @err_catcher(name=__name__)                 #   TODO MAKE SURE DIRS EXIST -- Maybe do not show the Delete option if not.
     def purgeFiles(self, mode=None):
 
+        #   Purges all items
         if mode == "all":
             logger.debug("Purging All Files")
             questionText = f"Are you sure you want to Permanently Delete all Items?\n\nThis is not Reversable."
@@ -1316,6 +1256,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                             dir_path = os.path.join(root, dir_name)
                             shutil.rmtree(dir_path)
 
+                    #   Clear list
                     self.delFileInfoList = []
                     logger.debug("SUCCESS:  Purged All Files")
                     self.saveSettings()
@@ -1327,6 +1268,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                 return
             
 
+            #   TODO
             
             # self.waitingCircle = PrismWaitingCircleManager()
             # self.waitingCircle.start()      #   TESTING FOR WAITING CIRCLE
@@ -1335,7 +1277,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
 
 
-            
+        #   Purges selected item
         elif mode == "single":
             selectedRow = self.table_delItems.currentRow()
             #   Return if no row selected
@@ -1398,6 +1340,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
             if restoreEntity:
                 logger.debug(f"Restoring {restoreEntity['Entity']}")
                 try:
+                    #   For case where restoring files to a Dir
                     if restoreEntity["Type"] in ["Scene Files", "Library Item"]:                  #   TODO CLEANUP
                         for origItem in origList:
                             origLocName = origItem["location"]
@@ -1413,7 +1356,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 delItemPath = os.path.join(delLocation, item)
                                 origItemPath = os.path.join(origLocDir, item)
 
-                                #   If file exists in original location, it will delete then move.
+                                #   If file exists it will abort
                                 if os.path.isfile(origItemPath):
                                     logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
@@ -1433,6 +1376,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                     logger.debug(f"Restore Error: {e}")
 
                     else:
+                        #   For case that resore entire Dir
                         for origItem in origList:
                             origLocName = origItem["location"]
                             origLocPath = origItem["path"]
@@ -1446,6 +1390,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                 delItemPath = os.path.join(delLocation, item)
                                 origItemPath = os.path.join(origLocPath, item)
 
+                                #   If file exists it will abort
                                 if os.path.exists(origItemPath):
                                     logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
@@ -1460,6 +1405,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
                                     self.core.popup(f"{e}")                             #   TODO
                                     logger.debug(f"Restore Error: {e}")
 
+                    #   Remove item from table
                     self.table_delItems.removeRow(selectedRow)
 
                     # Remove the matched item from the list
@@ -1481,7 +1427,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     @err_catcher(name=__name__)
     def generateUID(self):
-        #   Generate UId using current datetime to the nearest tenth of a second
+        #   Generate UID using current datetime to the nearest tenth of a second
         currentDatetime = datetime.now()
         UID = currentDatetime.strftime("%m%d%y%H%M%S") + str(currentDatetime.microsecond // 100000)
 
@@ -1492,18 +1438,22 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     @err_catcher(name=__name__)
     def ensureDirName(self, delItemName):
+
+        #   Checks if Dir name already exists, and will append _# if it does
         destDir = os.path.join(self.delDirectory, delItemName)
 
         if not os.path.exists(destDir):
             os.mkdir(destDir)
             logger.debug(f"Creating Deleted Item: {delItemName}")
         else:
+            #   Checks if an appened deleted item already exists
             match = re.match(r"_(\d+)$", destDir)
             if match:
                 baseDir = match.group(1)
             else:
                 baseDir = destDir
 
+            #   Appends suffix
             newSuffix = 0
             while os.path.exists(destDir):
                 newSuffix += 1
@@ -1519,6 +1469,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     @err_catcher(name=__name__)
     def getItemFromUID(self, UID): 
+        #   Returns full item details from matching UID
         try:  
             selectedItem = next((item for item in self.delFileInfoList if item["UID"] == UID), None)
             return selectedItem
@@ -1528,7 +1479,7 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
     @err_catcher(name=__name__)                 #   TODO ENSURE SYNC BETWEEN DIR AND LIST and MAYBE READ CURRENT FILES IN DIR
     def refreshList(self):
-
+        #   To resync table in menu
         self.table_delItems.clearContents()
         self.loadSettings()
         self.calcDelDirSize()
@@ -1589,5 +1540,108 @@ class Prism_DeleteFunctions_Functions(object):                      #   TODO    
 
 
 
+class AutoPurger(object):
+
+    #   Global Var in attempt to stop multiple timer instances being created by opening DCC
+    timerRunning = False
+
+    def __init__(self, core, settingsFile, delDirectory):
+        super().__init__()
+
+        self.core = core
+        #   Timer for directory check
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.checkDir)
+
+        #   Interval for AutoPurger to check DeleteDir for purge items.
+        #   This is NOT the duration to keep the items before purging
+        self.dirCheckInterval = 10  # seconds  (10 mins)                        #   TESTING -- CHANGE BACK TO 600
+        
+        self.settingsFile = settingsFile
+        self.delDirectory = delDirectory
+
+        #   Stops timer thread when Prism is quitting
+        QCoreApplication.instance().aboutToQuit.connect(self.stop)
 
 
+    def checkDir(self):
+        logger.info(f"AutoPurge--Checking directory: {self.delDirectory}")
+
+        #   Calculates cutoff time based on interval and present time
+        delTimeCutoff_str = self.getDelTimeCutoff()
+        logger.debug(f"Files older than {delTimeCutoff_str} will be purged.")
+
+        #   Deletes the deleted files
+        self.executePurge(delTimeCutoff_str)
+
+        # Schedule the next check only if the timer hasn't been started by another instance
+        if not AutoPurger.timerRunning:
+            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")                     #   TODO    Figure out a way to have one one timer
+            self.timer.start(self.dirCheckInterval * 1000)  # Convert seconds to milliseconds
+            AutoPurger.timerRunning = True
+
+
+    def getDelTimeCutoff(self):
+        #   Returns the date/time based on the hours interval selected in the menu
+        currentDateTime = datetime.now()
+        delTimeCutoff = currentDateTime - timedelta(hours=self.deleteInterval)
+        delTimeCutoff_str = delTimeCutoff.strftime('%m/%d/%y %H:%M')
+
+        return delTimeCutoff_str
+
+
+    def executePurge(self, delTimeCutoff_str):
+        #   Opens settingsFile
+        with open(self.settingsFile, 'r') as file:
+            data = json.load(file)
+
+        itemsList = data.get("Items", [])
+
+        #   Retrieves item deleted times
+        itemsToDelete = []
+        for item in itemsList:
+            deletedTime_str = item.get("Deleted", "")
+
+            # Convert the "Deleted" date strings to datetime
+            delTimeCutoff = datetime.strptime(delTimeCutoff_str, '%m/%d/%y %H:%M')
+            deletedTime = datetime.strptime(deletedTime_str, '%m/%d/%y %H:%M')
+
+            # Check if the item's "Deleted" date is less than delTimeCutoff
+            if deletedTime < delTimeCutoff:
+                itemsToDelete.append(item)
+
+        for item in itemsToDelete:
+            try:
+                #   Delete matching items
+                logger.debug(f"Purging: {item['DeletedLocation']}")
+                shutil.rmtree(item['DeletedLocation'])
+                logger.info(f"SUCCESS: Purged {item['DeletedLocation']}")
+
+                # Remove the deleted item from the data dictionary
+                itemsList.remove(item)
+
+            except Exception as e:
+                logger.warning(f"Unable to purge: {item['DeletedLocation']}")
+                logger.warning(e)
+
+        # Save the updated data back to the settings file
+        data["Items"] = itemsList
+        with open(self.settingsFile, 'w') as file:
+            json.dump(data, file, indent=4)
+
+
+    def run(self, interval):
+        self.deleteInterval = interval
+        logger.info("Starting AutoPurge Timer")
+        logger.info(f"AutoPurge Interval: {interval}")
+        logger.info(f"Deleted files older than {interval}hrs will be purged")
+
+        self.checkDir()
+
+
+    def isRunning(self):
+        return self.timer.isActive()
+
+
+    def stop(self):
+        self.timer.stop()
