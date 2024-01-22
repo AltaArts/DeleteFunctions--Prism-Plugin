@@ -10,11 +10,19 @@ https://prism-pipeline.com/
 
 ## **Plugin Usage**
 
-DeleteFunctions adds the ability to delete project items throughout the Prism2 UI.  This plugin allows deletion of Scene Files, Products, Departments, Tasks, Versions, Media, and Library items without deleting through Windows File Explorer.  This plugin also adds Restore functions to un-delete items if needed.
+DeleteFunctions adds the ability to delete project items throughout the Prism2 UI.  This plugin allows deletion of Scene Files, Products, Departments, Tasks, Versions, Media, and Library items without using Windows File Explorer.  This plugin also adds Restore functions to un-delete items if needed.
 
-A new menu tab called Delete Functions will be added to the User Settings.  
+![Delete Task](https://github.com/AltaArts/DeleteFunctions--Prism-Plugin/assets/86539171/4219e882-c4f4-45b5-b627-c473a469acf7) ![RemoveMenu](https://github.com/AltaArts/DeleteFunctions--Prism-Plugin/assets/86539171/758b77af-6519-4b7e-a5e3-28bcf47bca18)
+
+
+
+
+A new menu tab called Delete Functions will be added to the User Settings.  In this menu a user has the ability to enable/disable the delete functions globally.  A directory needs to be selected to hold the deleted items until purging.  If the folder is unavailable, the delete functions will be dusabled to prevent deleting to a 
+
+![Prism-DeleteMenu](https://github.com/AltaArts/DeleteFunctions--Prism-Plugin/assets/86539171/71ae8313-5735-4423-8c16-ee49339d65ae)
 
 Deleted files will be moved to a user-selected holding directory to allow for restoring the deleted files back to their original locations if needed.  Deleted files in the holding directory can be periodically purged based on a duration specifies in the use Settings, or manual purged at any time.
+
 
 
 
