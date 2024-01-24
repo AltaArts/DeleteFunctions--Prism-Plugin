@@ -86,8 +86,9 @@ class Prism_DeleteFunctions_Functions(object):
         self.loadSettings()
 
         #   Creates autoPurger timer instance
-        self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
-        self.updateAutoPurger(mode="launch")
+        if self.core.appPlugin.pluginName == "Standalone":
+            self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
+            self.updateAutoPurger(mode="launch")
 
 
 
@@ -512,7 +513,6 @@ class Prism_DeleteFunctions_Functions(object):
     @err_catcher(name=__name__)
     def updateAutoPurger(self, mode="refresh"):
 
-        #   TODO    TRYING TO BLOCK SECOND TIMER BEING CREATED FROM DCC
         if mode == "launch":
             if self.autoPurger.isRunning():
                 return
@@ -1546,7 +1546,6 @@ class Prism_DeleteFunctions_Functions(object):
 
 class AutoPurger(object):
 
-    #   Global Var in attempt to stop multiple timer instances being created by opening DCC
     timerRunning = False
 
     def __init__(self, core, settingsFile, delDirectory):
@@ -1580,7 +1579,7 @@ class AutoPurger(object):
 
         # Schedule the next check only if the timer hasn't been started by another instance
         if not AutoPurger.timerRunning:
-            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")                     #   TODO    Figure out a way to have one one timer
+            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")
             self.timer.start(self.dirCheckInterval * 1000)  # Convert seconds to milliseconds
             AutoPurger.timerRunning = True
 
