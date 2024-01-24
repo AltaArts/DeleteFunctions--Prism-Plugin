@@ -878,6 +878,9 @@ class Prism_DeleteFunctions_Functions(object):
                     version = prodData["version"]
                     prodData["path"] = os.path.join(data["path"], version)
 
+
+                prodData["project_name"] = self.core.projectName
+
                 product = prodData["product"]
                 path = prodData["path"]
 
@@ -888,6 +891,7 @@ class Prism_DeleteFunctions_Functions(object):
                     sequence = prodData["sequence"]
                     shot = prodData["shot"]
                     entity = f"{sequence}_{shot}_{product}"
+
 
                 deleteList = []
             #   Retrieves Locations Data
@@ -1555,7 +1559,7 @@ class AutoPurger(object):
 
         #   Interval for AutoPurger to check DeleteDir for purge items.
         #   This is NOT the duration to keep the items before purging
-        self.dirCheckInterval = 600  # seconds  (10 mins)
+        self.dirCheckInterval = 10  # seconds  (10 mins)                        #   TESTING -- CHANGE BACK TO 600
         
         self.settingsFile = settingsFile
         self.delDirectory = delDirectory
