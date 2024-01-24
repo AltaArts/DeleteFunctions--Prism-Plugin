@@ -1559,7 +1559,7 @@ class AutoPurger(object):
 
         #   Interval for AutoPurger to check DeleteDir for purge items.
         #   This is NOT the duration to keep the items before purging
-        self.dirCheckInterval = 10  # seconds  (10 mins)                        #   TESTING -- CHANGE BACK TO 600
+        self.dirCheckInterval = 600  # seconds  (10 mins)
         
         self.settingsFile = settingsFile
         self.delDirectory = delDirectory
