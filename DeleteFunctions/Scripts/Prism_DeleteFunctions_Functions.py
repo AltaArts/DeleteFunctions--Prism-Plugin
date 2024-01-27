@@ -86,9 +86,8 @@ class Prism_DeleteFunctions_Functions(object):
         self.loadSettings()
 
         #   Creates autoPurger timer instance
-        if self.core.appPlugin.pluginName == "Standalone":
-            self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
-            self.updateAutoPurger(mode="launch")
+        self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
+        self.updateAutoPurger(mode="launch")
 
 
 
@@ -241,7 +240,7 @@ class Prism_DeleteFunctions_Functions(object):
 
         # # Set column widths
         self.table_delItems.setColumnWidth(0, 150)      # Project column
-        self.table_delItems.setColumnWidth(1, 150)      # Type column
+        self.table_delItems.setColumnWidth(1, 100)      # Type column
         # self.table_delItems.setColumnWidth(1, -1)     # File column (stretch to fill)
         self.table_delItems.setColumnWidth(3, 150)      # Deleted column
 
@@ -257,18 +256,6 @@ class Prism_DeleteFunctions_Functions(object):
         #   Hides UID Column
         self.table_delItems.setColumnHidden(4, True)
 
-
-
-        # Set items to be read-only                                                         #   TODO READONLY NOT WORKING
-        for row in range(self.table_delItems.rowCount()):
-            for col in range(self.table_delItems.columnCount()):
-                item = QTableWidgetItem()
-                item.setReadOnly(True)
-                # item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make the item read-only
-                self.table_delItems.setItem(row, col, item)
-
-
-
         tip = ("Deleted files currently in Delete Dir.  These files will be automatically\n"
                "purged based on time set above.\n"
                "\n"
@@ -276,8 +263,10 @@ class Prism_DeleteFunctions_Functions(object):
                 )
         self.table_delItems.setToolTip(tip)
 
+        #   Configure Table
         self.table_delItems.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table_delItems.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table_delItems.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         self.lo_deleteDirectory.addWidget(self.table_delItems)
 
@@ -513,6 +502,7 @@ class Prism_DeleteFunctions_Functions(object):
     @err_catcher(name=__name__)
     def updateAutoPurger(self, mode="refresh"):
 
+        #   TODO    TRYING TO BLOCK SECOND TIMER BEING CREATED FROM DCC
         if mode == "launch":
             if self.autoPurger.isRunning():
                 return
@@ -960,6 +950,9 @@ class Prism_DeleteFunctions_Functions(object):
         
         self.loadSettings()
         self.menuContext = "Media"
+
+        #   Gets Media Viewer Object
+        self.mediaViewer = origin.w_preview.mediaPlayer
 
         if self.deleteActive:
             try:
@@ -1546,6 +1539,7 @@ class Prism_DeleteFunctions_Functions(object):
 
 class AutoPurger(object):
 
+    #   Global Var in attempt to stop multiple timer instances being created by opening DCC
     timerRunning = False
 
     def __init__(self, core, settingsFile, delDirectory):
@@ -1579,7 +1573,7 @@ class AutoPurger(object):
 
         # Schedule the next check only if the timer hasn't been started by another instance
         if not AutoPurger.timerRunning:
-            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")
+            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")                     #   TODO    Figure out a way to have one one timer
             self.timer.start(self.dirCheckInterval * 1000)  # Convert seconds to milliseconds
             AutoPurger.timerRunning = True
 
