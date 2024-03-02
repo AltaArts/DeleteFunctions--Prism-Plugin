@@ -1424,10 +1424,20 @@ class Prism_DeleteFunctions_Functions(object):
             return None
     
 
-    @err_catcher(name=__name__)                 #   TODO ENSURE SYNC BETWEEN DIR AND LIST and MAYBE READ CURRENT FILES IN DIR
+    @err_catcher(name=__name__)
     def refreshList(self):
         #   To resync table in menu
         self.table_delItems.clearContents()
+
+        #   Checks if item exists in DeleteDir and removes from list
+        updated_delFileInfoList = []
+        for item in self.delFileInfoList:
+            if os.path.exists(item["DeletedLocation"]):
+                updated_delFileInfoList.append(item)
+    
+        self.delFileInfoList = updated_delFileInfoList
+
+        self.saveSettings()
         self.loadSettings()
         self.calcDelDirSize()
         self.table_delItems.viewport().update()
