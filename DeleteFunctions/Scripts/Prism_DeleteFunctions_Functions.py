@@ -568,7 +568,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     @err_catcher(name=__name__)
@@ -624,7 +624,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     @err_catcher(name=__name__)
@@ -682,7 +682,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     @err_catcher(name=__name__)
@@ -737,7 +737,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     @err_catcher(name=__name__)
@@ -794,7 +794,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     #   Called with Callback - Product Browser
@@ -1029,7 +1029,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     @err_catcher(name=__name__)                                             #   TODO MORE INFO FOR LIBRARY ITEMS
@@ -1076,7 +1076,7 @@ class Prism_DeleteFunctions_Functions(object):
             except Exception as e:
                 msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
                 self.core.popup(msg)
-                logger.wraning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
 
 
     #   Used to Remove Item from Specific Location
