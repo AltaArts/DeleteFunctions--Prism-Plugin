@@ -51,17 +51,11 @@ import logging
 from datetime import datetime, timedelta
 from functools import partial
 
-try:
-    from PySide2.QtCore import *
-    from PySide2.QtGui import *
-    from PySide2.QtWidgets import *
-except:
-    from PySide.QtCore import *
-    from PySide.QtGui import *
+from qtpy.QtCore import *
+from qtpy.QtGui import *
+from qtpy.QtWidgets import *
 
 from PrismUtils.Decorators import err_catcher_plugin as err_catcher
-
-# from PrismDeleteUtils.PrismWaitingIcon import PrismWaitingIcon            #   TODO
 
 
 logger = logging.getLogger(__name__)
@@ -75,7 +69,7 @@ class Prism_DeleteFunctions_Functions(object):
         self.pluginDir = os.path.dirname(os.path.dirname(__file__))
         self.settingsFile = os.path.join(self.pluginDir, "DeleteFunctions_Config.json")
 
-        self.loadedPlugins = []                                 #   NEEDED ???
+        self.loadedPlugins = []
         self.delDirectory = None
         self.deleteActive = False
         self.delFileInfoList = []
@@ -118,7 +112,7 @@ class Prism_DeleteFunctions_Functions(object):
 
 
     #   Check Loaded Plugins
-    @err_catcher(name=__name__)                                     #   TODO    NEEDED ???
+    @err_catcher(name=__name__)
     def getLoadedPlugins(self):
         logger.debug("Getting Loaded Plugins")
 
@@ -1112,6 +1106,11 @@ class Prism_DeleteFunctions_Functions(object):
         if result == "Yes":
             logger.debug(f"Deleting: {delItemName}")
 
+            deletePopup = self.core.waitPopup(
+                self.core, "Deleting file(s) - please wait..\n\n\n"
+                )
+            deletePopup.show()
+
             try:
                 #   Temp disable Media Player to allow for deletion
                 if self.menuContext == "Media":
@@ -1163,6 +1162,9 @@ class Prism_DeleteFunctions_Functions(object):
                     self.mediaViewer.updatePreview()
 
                 logger.debug(f"SUCCESS: {delItemName} deleted")
+
+                deletePopup.close()
+
                 self.saveSettings()
                 #   Refresh ProjectBrowser
                 self.core.pb.refreshUI()
@@ -1213,16 +1215,6 @@ class Prism_DeleteFunctions_Functions(object):
                     logger.warning(f"ERROR: Unable to Purge Files.  {e}")
             else:
                 return
-            
-
-            #   TODO
-            
-            # self.waitingCircle = PrismWaitingCircleManager()
-            # self.waitingCircle.start()      #   TESTING FOR WAITING CIRCLE
-            # time.sleep(5)                   #   TESTING
-            # self.waitingCircle.stop()       #   TESTING
-
-
 
         #   Purges selected item
         elif mode == "single":
@@ -1263,7 +1255,7 @@ class Prism_DeleteFunctions_Functions(object):
 
 
     @err_catcher(name=__name__)                             #   TODO MORE ROBUST FILE CHECKING BEFORE DELETE
-    def restoreSelected(self):                              #   TODO ADD EXECEPTIONS
+    def restoreSelected(self):
 
         selectedRow = self.table_delItems.currentRow()
         #   Return if no row selected
@@ -1286,6 +1278,13 @@ class Prism_DeleteFunctions_Functions(object):
 
             if restoreEntity:
                 logger.debug(f"Restoring {restoreEntity['Entity']}")
+
+                restorePopup = self.core.waitPopup(
+                    self.core, "Restoring Entity - please wait..\n\n\n"
+                    )
+
+                restorePopup.show()
+
                 try:
                     #   For case where restoring files to a Dir
                     if restoreEntity["Type"] in ["Scene Files", "Library Item"]:                  #   TODO CLEANUP
@@ -1308,7 +1307,7 @@ class Prism_DeleteFunctions_Functions(object):
                                     logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
                                     text = (f"{restoreEntity['Type']}: {item}\n\n"
-                                            "already exists in Restore Location."                   #   TODO
+                                            "already exists in Restore Location." 
                                             )
                                     self.core.popup(text=text, title=title)
                                     return
@@ -1319,7 +1318,7 @@ class Prism_DeleteFunctions_Functions(object):
                                 try:
                                     shutil.move(delItemPath, origLocDir)
                                 except Exception as e:
-                                    self.core.popup(f"{e}")                         #   TODO
+                                    self.core.popup(f"{e}")
                                     logger.debug(f"Restore Error: {e}")
 
                     else:
@@ -1342,14 +1341,14 @@ class Prism_DeleteFunctions_Functions(object):
                                     logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
                                     text = (f"{restoreEntity['Type']}\n\n"
-                                            "already exists in Restore Location."                   #   TODO
+                                            "already exists in Restore Location."
                                             )
                                     self.core.popup(text=text, title=title)
                                     return
                                 try:
                                     shutil.move(delItemPath, origLocPath)
                                 except Exception as e:
-                                    self.core.popup(f"{e}")                             #   TODO
+                                    self.core.popup(f"{e}")
                                     logger.debug(f"Restore Error: {e}")
 
                     #   Remove item from table
@@ -1368,6 +1367,8 @@ class Prism_DeleteFunctions_Functions(object):
 
                 except Exception as e:
                     logger.warning(f"ERROR: Unable to Restore: {e}")
+
+                restorePopup.close()
             else:
                 pass
 
@@ -1468,32 +1469,6 @@ class Prism_DeleteFunctions_Functions(object):
             self.e_tempDirSize.setText(delDirSizeStr)
         except:
             pass
-
-
-######  TODO
-# class PrismWaitingCircleManager(object):
-#     def __init__(self):
-#         self.prismWaitingIcon = PrismWaitingIcon()
-#         self.showWaitingCircleFlag = False
-
-#     def show(self):
-#         self.prismWaitingIcon.showWaitingIcon()
-#         print("started")                            #   TESTING
-#         self.showWaitingCircleFlag = True
-
-#     def hide(self):
-#         self.prismWaitingIcon.hideWaitingIcon()
-#         print("stopped")                            #   TESTING
-#         self.showWaitingCircleFlag = False
-
-#     def start(self):
-#         self.show()
-#         self.prismWaitingIcon.show()
-
-#     def stop(self):
-#         self.hide()
-#         self.prismWaitingIcon.hide()
-
 
 
 
