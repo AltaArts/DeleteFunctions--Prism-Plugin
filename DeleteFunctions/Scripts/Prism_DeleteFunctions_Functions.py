@@ -911,7 +911,6 @@ class Prism_DeleteFunctions_Functions(object):
                 logger.warning(f"ERROR:  Cannot delete {prodErrName}. {e}")
 
 
-
     @err_catcher(name=__name__)
     def deleteMedia(self, origin, rcmenu, lw, item, path):
         if not item:
@@ -925,32 +924,31 @@ class Prism_DeleteFunctions_Functions(object):
 
         if self.deleteActive:
             try:
-                #   From where right-click originated
-                if lw == origin.tw_identifier:
-                    itemName = item.text(0)
-                else:
-                    itemName = item.text()
 
                 entity = origin.getCurrentEntity()
                 if not entity:
                     return
-                
-                #   Obtaining data based on where right-click originated
+
+                #   From where right-click originated and get the item data
                 if lw == origin.tw_identifier:
                     listType = "identifier"
-                    if itemName:
-                        data = item.data(0, Qt.UserRole)
+                    data = item.data(0, Qt.UserRole)
 
                 elif lw == origin.lw_version:
                     listType = "version"
-                    if itemName:
-                        data = item.data(Qt.UserRole)
-                    else:
-                        identifier = origin.getCurrentIdentifier()
-                        if not identifier:
-                            return
+                    data = item.data(Qt.UserRole)
 
-                identifier = data["identifier"]
+                else:
+                    return
+                
+                # Check if data is valid and if "isGroup" exists and is True
+                if not data or (hasattr(data, "isGroup") and data.get("isGroup", False)):
+                    return
+
+                #   Get the Identifier name
+                identifier = data.get("identifier")
+                if not identifier:
+                    return
 
                 if data["type"] == "asset":
                     asset = data["asset"]
@@ -1021,9 +1019,13 @@ class Prism_DeleteFunctions_Functions(object):
                         rcmenu.addMenu(removeMenu)
 
             except Exception as e:
-                msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
+                if hasattr(self, "delEntityData"):
+                    msg = f"Cannot delete {delEntityData['delItemName']}\n\n{str(e)}"
+                else:
+                    msg = f"Cannot delete Entity\n\n{str(e)}"
+                    
                 self.core.popup(msg)
-                logger.warning(f"ERROR:  Cannot delete {delEntityData['delItemName']}. {e}")
+                logger.warning(f"ERROR:  {msg}. {e}")
 
 
     @err_catcher(name=__name__)                                             #   TODO MORE INFO FOR LIBRARY ITEMS
