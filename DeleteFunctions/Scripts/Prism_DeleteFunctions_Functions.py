@@ -58,6 +58,17 @@ from qtpy.QtWidgets import *
 from PrismUtils.Decorators import err_catcher_plugin as err_catcher
 
 
+#   Custom Logging Level to Display when Prism Debug Mode is Off
+STATUS_LEVEL_NUM = 35
+logging.addLevelName(STATUS_LEVEL_NUM, "STATUS")
+
+def status(logger, message, *args, **kwargs):
+    if logger.isEnabledFor(STATUS_LEVEL_NUM):
+        logger._log(STATUS_LEVEL_NUM, message, args, **kwargs)
+
+logging.Logger.status = status
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,7 +89,7 @@ class Prism_DeleteFunctions_Functions(object):
 
         #   Creates autoPurger timer instance if called from Prism Standalone
         if self.core.appPlugin.pluginName == "Standalone":
-            self.autoPurger = AutoPurger(self.core, self.settingsFile, self.delDirectory)
+            self.autoPurger = AutoPurger(self, self.core, self.settingsFile, self.delDirectory)
             self.updateAutoPurger(mode="launch")
 
         #   Callbacks
@@ -331,7 +342,7 @@ class Prism_DeleteFunctions_Functions(object):
             self.but_purgeSelected.setEnabled(active)
             self.but_purgeAll.setEnabled(active)
 
-            logger.debug(f"DeleteActive = {enabled}")
+            logger.status(f"DeleteActive = {enabled}")
         except:
             pass
         
@@ -430,7 +441,7 @@ class Prism_DeleteFunctions_Functions(object):
 
         # Create the settings file if it doesn't exist
         except FileNotFoundError:
-            logger.debug("Settings file does not exist. Creating New.")
+            logger.status("Settings file does not exist. Creating New.")
             self.createSettings()
 
         #   Delete and Create Corrupt Settings File
@@ -453,7 +464,7 @@ class Prism_DeleteFunctions_Functions(object):
         self.delDirectory = ""
         self.delFileInfoList = []
 
-        logger.debug("Created settings file.")
+        logger.status("Created settings file.")
         self.saveSettings()
 
 
@@ -498,10 +509,10 @@ class Prism_DeleteFunctions_Functions(object):
 
         #   If interval is Zero, the autoPurge is not used
         if self.updateInterval >0:
-            logger.debug("Starting AutoPurger")
+            logger.status("Starting AutoPurger")
             self.autoPurger.run(self.updateInterval)
         else:
-            logger.info("AutoPurger Disabled")
+            logger.status("AutoPurger Disabled")
 
         self.saveSettings()
 
@@ -1106,7 +1117,7 @@ class Prism_DeleteFunctions_Functions(object):
         result = self.core.popupQuestion(questText, title=questTitle)
 
         if result == "Yes":
-            logger.debug(f"Deleting: {delItemName}")
+            logger.status(f"Deleting: {delItemName}")
 
             deletePopup = self.core.waitPopup(
                 self.core, "Deleting file(s) - please wait..\n\n\n"
@@ -1191,7 +1202,7 @@ class Prism_DeleteFunctions_Functions(object):
 
         #   Purges all items
         if mode == "all":
-            logger.debug("Purging All Files")
+            logger.status("Purging All Files")
             questionText = f"Are you sure you want to Permanently Delete all Items?\n\nThis is not Reversable."
             result = self.core.popupQuestion(questionText, title="Permanently Delete Files")
 
@@ -1235,7 +1246,7 @@ class Prism_DeleteFunctions_Functions(object):
 
                     # Find the dictionary in the list with the matching UID
                     purgeItem = self.getItemFromUID(selectedUID)
-                    logger.debug(f"Purging {purgeItem['Entity']}")
+                    logger.status(f"Purging {purgeItem['Entity']}")
 
                     if purgeItem:
                         itemPath = purgeItem["DeletedLocation"]
@@ -1279,7 +1290,7 @@ class Prism_DeleteFunctions_Functions(object):
             origList = restoreEntity["OriginalLocation"]
 
             if restoreEntity:
-                logger.debug(f"Restoring {restoreEntity['Entity']}")
+                logger.status(f"Restoring {restoreEntity['Entity']}")
 
                 restorePopup = self.core.waitPopup(
                     self.core, "Restoring Entity - please wait..\n\n\n"
@@ -1306,7 +1317,7 @@ class Prism_DeleteFunctions_Functions(object):
 
                                 #   If file exists it will abort
                                 if os.path.isfile(origItemPath):
-                                    logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
+                                    logger.warning(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
                                     text = (f"{restoreEntity['Type']}: {item}\n\n"
                                             "already exists in Restore Location." 
@@ -1321,7 +1332,7 @@ class Prism_DeleteFunctions_Functions(object):
                                     shutil.move(delItemPath, origLocDir)
                                 except Exception as e:
                                     self.core.popup(f"{e}")
-                                    logger.debug(f"Restore Error: {e}")
+                                    logger.warning(f"Restore Error: {e}")
 
                     else:
                         #   For case that resore entire Dir
@@ -1340,7 +1351,7 @@ class Prism_DeleteFunctions_Functions(object):
 
                                 #   If file exists it will abort
                                 if os.path.exists(origItemPath):
-                                    logger.debug(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
+                                    logger.warning(f"Unable to Restore--Item already exists:  {restoreEntity['Entity']}")
                                     title = "Unable to Restore"
                                     text = (f"{restoreEntity['Type']}\n\n"
                                             "already exists in Restore Location."
@@ -1351,7 +1362,7 @@ class Prism_DeleteFunctions_Functions(object):
                                     shutil.move(delItemPath, origLocPath)
                                 except Exception as e:
                                     self.core.popup(f"{e}")
-                                    logger.debug(f"Restore Error: {e}")
+                                    logger.warning(f"Restore Error: {e}")
 
                     #   Remove item from table
                     self.table_delItems.removeRow(selectedRow)
@@ -1478,9 +1489,10 @@ class AutoPurger(object):
 
     timerRunning = False
 
-    def __init__(self, core, settingsFile, delDirectory):
+    def __init__(self, origin, core, settingsFile, delDirectory):
         super().__init__()
 
+        self.deleteFuncts = origin
         self.core = core
         #   Timer for directory check
         self.timer = QTimer()
@@ -1498,18 +1510,18 @@ class AutoPurger(object):
 
 
     def checkDir(self):
-        logger.info(f"AutoPurge--Checking directory: {self.delDirectory}")
+        logger.status(f"AutoPurge--Checking directory: {self.delDirectory}")
 
         #   Calculates cutoff time based on interval and present time
         delTimeCutoff_str = self.getDelTimeCutoff()
-        logger.debug(f"Files older than {delTimeCutoff_str} will be purged.")
+        logger.status(f"Files older than {delTimeCutoff_str} will be purged.")
 
         #   Deletes the deleted files
         self.executePurge(delTimeCutoff_str)
 
         # Schedule the next check only if the timer hasn't been started by another instance
         if not AutoPurger.timerRunning:
-            logger.debug(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")
+            logger.status(f"Next AutoPurge check in {self.dirCheckInterval / 60} mins.")
             self.timer.start(self.dirCheckInterval * 1000)  # Convert seconds to milliseconds
             AutoPurger.timerRunning = True
 
@@ -1524,50 +1536,55 @@ class AutoPurger(object):
 
 
     def executePurge(self, delTimeCutoff_str):
-        #   Opens settingsFile
+        #   Get Items from File
         with open(self.settingsFile, 'r') as file:
             data = json.load(file)
-
         itemsList = data.get("Items", [])
 
-        #   Retrieves item deleted times
-        itemsToDelete = []
+        #   Get Cut-off Time
+        delTimeCutoff = datetime.strptime(delTimeCutoff_str, '%m/%d/%y %H:%M')
+
+        itemsToKeep = []
+
         for item in itemsList:
+            path = item['DeletedLocation']
             deletedTime_str = item.get("Deleted", "")
 
-            # Convert the "Deleted" date strings to datetime
-            delTimeCutoff = datetime.strptime(delTimeCutoff_str, '%m/%d/%y %H:%M')
+            #   Check if the Item Exists in Del Dir
+            if not os.path.exists(path):
+                logger.warning(f"File Item already removed: {path}")
+                continue
+
             deletedTime = datetime.strptime(deletedTime_str, '%m/%d/%y %H:%M')
 
-            # Check if the item's "Deleted" date is less than delTimeCutoff
+            #   If Deleted Time > Cut-off Time, Remove
             if deletedTime < delTimeCutoff:
-                itemsToDelete.append(item)
+                try:
+                    logger.status(f"Purging: {path}")
+                    shutil.rmtree(path)
 
-        for item in itemsToDelete:
-            try:
-                #   Delete matching items
-                logger.debug(f"Purging: {item['DeletedLocation']}")
-                shutil.rmtree(item['DeletedLocation'])
-                logger.info(f"SUCCESS: Purged {item['DeletedLocation']}")
+                except Exception as e:
+                    logger.warning(f"Unable to purge: {path}: {e}")
 
-                # Remove the deleted item from the data dictionary
-                itemsList.remove(item)
+                continue
 
-            except Exception as e:
-                logger.warning(f"Unable to purge: {item['DeletedLocation']}")
-                logger.warning(e)
+            #   If Not Removed or Not Exists, add to List
+            itemsToKeep.append(item)
 
-        # Save the updated data back to the settings file
-        data["Items"] = itemsList
+        #   Sync Main List with New List
+        self.deleteFuncts.delFileInfoList = itemsToKeep
+
+        #   Save to Settings File
+        data["Items"] = itemsToKeep
         with open(self.settingsFile, 'w') as file:
             json.dump(data, file, indent=4)
 
 
     def run(self, interval):
         self.deleteInterval = interval
-        logger.info("Starting AutoPurge Timer")
-        logger.info(f"AutoPurge Interval: {interval}")
-        logger.info(f"Deleted files older than {interval}hrs will be purged")
+        logger.debug("Starting AutoPurge Timer")
+        logger.debug(f"AutoPurge Interval: {interval}")
+        logger.debug(f"Deleted files older than {interval}hrs will be purged")
 
         self.checkDir()
 
